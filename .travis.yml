@@ -1,0 +1,15 @@
+language: python
+python:
+- 3.6
+install: pip install -U tox-travis
+script: tox
+deploy:
+  provider: pypi
+  distributions: sdist bdist_wheel
+  user: mbarakaja
+  password:
+    secure: QuNMQ6zgk8B4K6bZ84b0pp6DB/MzhaUcR3+uVW/KDvbRyRDkoAHwhJre2Np0Hvh5Gla/Ko2swLviSoQTOgZ4E4oGsyuO7Kh8mAS8hSq6FiPDRt4ekelibfTCcQDtm71s8OTm+GJgS3bHMLMzawQwSyTfLec3qj67VYuWxSBPizOCkRR1KJDEHQDMK4hj4FqwmZ+LddMpRlktC40yM2Al82njP6GiPE9LfijrZ7o7TaYQ8ruhQom8OqEg8gkDRkxKMRVnOYeNfcthXwDq9OuG6nCmPze8m+hTeqeg7zJS0cwO7bsU1fv04zLBOBNsIv8EHS2sV4atxdqlr7qFPwl6W+ptKxiLV+7qYKGJrJzQ3MzTPNjjHnl6S7n44fWBjFF15olChKWWnKRGH6r2J0Gq6RzfdVfHY5mUcZ5MIiyviotIaz0JuZciz21AD23cawfEUxyDgq1pUKNG6uyK8f3OJ4FzKPIJbYSk69BdMOh25vj3PNyRc/yFi/FT1CrpD3wH2cSfCExnP/HzS29X8KmizKz9K60NBVUYF7B2KKAU1T+/mGsJzDqv7IywJ2aGCHiROD++I8s4dmB6PVs4y4KJIO7l78FQHQc2T0OLLCmzN2QoRwOJch08QdSFjib3QHKhtHoEPDh92L8fEM6ITNaDkZdd9ZOJTfpsAsN7iGzStnk=
+  on:
+    tags: true
+    repo: mbarakaja/saraki
+    python: 3.6
