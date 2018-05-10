@@ -1,5 +1,7 @@
 pip==10.0.1
 bumpversion==0.5.3
+bcrypt==3.1.4
+Cerberus==1.2 
 wheel==0.30.0
 watchdog==0.8.3
 flake8==3.5.0
@@ -9,6 +11,7 @@ tox==2.9.1
 coverage==4.5.1
 Sphinx==1.7.1
 twine==1.10.0
+passlib==1.7.1
 psycopg2-binary==2.7.4
 pytest==3.4.2
 pytest-runner==2.11.1
