@@ -1,0 +1,5 @@
+[
+    {"id": 1, "name": "Explosive Tennis Balls", "color": "white", "price": 9},
+    {"id": 2, "name": "Binocular", "color": "black", "price": 99},
+    {"id": 3, "name": "Acme anvils", "color": "black", "price": 999}
+]

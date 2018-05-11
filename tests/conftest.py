@@ -1,9 +1,11 @@
 import os
 import pytest
+from json import loads as load_json
 from sqlalchemy import event
 from sqlalchemy.orm import sessionmaker, scoped_session
 from saraki import Saraki
 from saraki.model import database
+from common import Person, Product, Order, OrderLine
 
 
 class TransactionManager(object):
@@ -61,10 +63,33 @@ def app(request):
     app = Saraki('flask_test', root_path=os.path.dirname(__file__))
     app.config['TESTING'] = True
 
+    return app
+
+
+@pytest.fixture(scope='session', autouse=True)
+def setup_database(app):
+
     with app.app_context():
         database.create_all()
 
-    yield app
+    with open('tests/data/product.json', 'r') as products_file, \
+            open('tests/data/order.json', 'r') as orders_file, \
+            open('tests/data/order_line.json', 'r') as order_lines_file,  \
+            open('tests/data/person.json', 'r') as persons_file:
+
+        person_ls = load_json(persons_file.read())
+        product_ls = load_json(products_file.read())
+        order_ls = load_json(orders_file.read())
+        order_line_ls = load_json(order_lines_file.read())
+
+    with app.app_context():
+        database.session.add_all([Person(**item) for item in person_ls])
+        database.session.add_all([Product(**item) for item in product_ls])
+        database.session.add_all([Order(**item) for item in order_ls])
+        database.session.add_all([OrderLine(**item) for item in order_line_ls])
+        database.session.commit()
+
+    yield
 
     with app.app_context():
         database.session.remove()
@@ -86,4 +111,14 @@ def client(app, trn, request):
     yield app.test_client()
 
     trn.close()
+    ctx.pop()
+
+
+@pytest.fixture
+def ctx(app):
+    ctx = app.app_context()
+    ctx.push()
+
+    yield
+
     ctx.pop()
