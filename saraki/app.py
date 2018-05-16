@@ -1,8 +1,12 @@
 from flask import Flask
-from saraki.handlers import signup_view
-from saraki import errors
-from saraki.model import database
-from saraki import config as default_config
+from . import errors
+from . import config as _default_config
+from .handlers import signup_view
+from .model import database
+from .auth import Auth
+
+
+auth = Auth()
 
 
 class Saraki(Flask):
@@ -10,7 +14,7 @@ class Saraki(Flask):
     def __init__(self, *args, **kargs):
         super(Saraki, self).__init__(*args, **kargs)
 
-        self.config.from_object(default_config)
+        self.config.from_object(_default_config)
 
         self.add_default_endpoints()
 

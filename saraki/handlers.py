@@ -1,7 +1,8 @@
 from flask import jsonify, request, abort
 from cerberus import Validator
-from saraki.model import AppUser, database
-from saraki.utility import generate_schema
+
+from .model import AppUser, database
+from .utility import generate_schema
 
 
 user_schema = generate_schema(

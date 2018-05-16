@@ -45,6 +45,9 @@ class AppUser(Model):
     def set_password(self, plain_text):
         self.password = bcrypt_sha256.hash(plain_text)
 
+    def verify_password(self, plain_text):
+        return bcrypt_sha256.verify(plain_text, self.password)
+
     def import_data(self, data):
 
         data['canonical_username'] = data['username'].lower()

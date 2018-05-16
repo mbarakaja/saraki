@@ -7,4 +7,4 @@ __email__ = 'miso.0b11@gmail.com'
 __version__ = '0.0.0'
 
 
-from .app import Saraki  # noqa: F401
+from saraki.app import Saraki  # noqa: F401
