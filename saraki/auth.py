@@ -183,7 +183,14 @@ def _authentication_endpoint():
 
 class Auth(object):
 
+    def __init__(self, app=None):
+
+        if app:
+            self.init_app(app)
+
     def init_app(self, app):
+
+        self.app = app
 
         app.add_url_rule(rule='/auth',
                          view_func=_authentication_endpoint,

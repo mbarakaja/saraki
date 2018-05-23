@@ -468,11 +468,21 @@ class TestRequestAccessToken(object):
 
 class TestAuth(object):
 
-    def test_authentication_endpoint_registration(self):
-        app = Flask(__name__)
+    def test_instantiation(self):
+        auth = Auth()
+        assert not hasattr(auth, 'app')
 
+        with patch.object(Auth, 'init_app') as mocked_init_app:
+            app = Flask(__name__)
+            auth = Auth(app)
+            mocked_init_app.assert_called_once_with(app)
+
+    def test_init_app(self):
+        app = Flask(__name__)
         auth = Auth()
         auth.init_app(app)
 
         adapter = app.url_map.bind('')
-        adapter.match('/auth', method='POST')
+
+        assert adapter.match('/auth', method='POST')
+        assert auth.app is app

@@ -4,7 +4,6 @@ from json import loads as load_json
 from sqlalchemy import event
 from sqlalchemy.orm import sessionmaker, scoped_session
 from saraki import Saraki
-from saraki.app import auth
 from saraki.model import database, AppUser
 from common import Person, Product, Order, OrderLine
 
@@ -71,8 +70,6 @@ def app(request):
     app.config['TESTING'] = True
     app.config['SECRET_KEY'] = 'secret'
     app.config['SERVER_NAME'] = 'acme.local'
-
-    auth.init_app(app)
 
     return app
 
