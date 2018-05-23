@@ -66,10 +66,13 @@ class TransactionManager(object):
 @pytest.fixture(scope='session')
 def app(request):
 
-    app = Saraki('flask_test', root_path=os.path.dirname(__file__))
+    app = Saraki('flask_test', root_path=os.path.dirname(__file__), db=None)
     app.config['TESTING'] = True
     app.config['SECRET_KEY'] = 'secret'
     app.config['SERVER_NAME'] = 'acme.local'
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('TEST_DATABASE_URI')
+
+    database.init_app(app)
 
     return app
 
