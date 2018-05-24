@@ -18,12 +18,6 @@ from .exc import NotFoundCredentialError, InvalidUserError, \
 AUTH_SCHEMA = generate_schema(AppUser, include=['username', 'password'])
 
 
-JWT_REQUIRED_CLAIMS = ['iss', 'exp', 'iat', 'sub']
-
-
-JWT_VERIFY_CLAIMS = ['iss', 'exp', 'iat', 'sub']
-
-
 def _verify_username(username):
 
     identity = AppUser.query \
@@ -62,29 +56,36 @@ def _get_incoming_request_token():
 
 
 def _jwt_payload_generator(identity):
+    required_claim_list = current_app.config['JWT_REQUIRED_CLAIMS']
     iat = datetime.utcnow()
     exp = iat + current_app.config['JWT_EXPIRATION_DELTA']
     iss = current_app.config['JWT_ISSUER'] or current_app.config['SERVER_NAME']
+    payload = {}
 
-    if iss is None:
-        raise RuntimeError('Neither JWT_ISSUER nor SERVER_NAME is set')
+    if 'iss' in required_claim_list:
+        if not iss:
+            raise RuntimeError(
+                'The token payload could not be generated. The claim iss is '
+                'required, but neither JWT_ISSUER nor SERVER_NAME are provided'
+            )
 
-    return {
-        'iss': iss,
-        'iat': iat,
-        'exp': exp,
-        'sub': identity.username,
-    }
+        payload['iss'] = iss
+
+    payload.update({'iat': iat, 'exp': exp, 'sub': identity.username})
+
+    return payload
 
 
 def _jwt_encode_handler(payload):
     secret = current_app.config['SECRET_KEY']
-    algorithm = current_app.config['JWT_ALGORITHM']
 
     if secret is None:
         raise RuntimeError('SECRET_KEY is not set. Can not generate Token')
 
-    missing_claims = list(set(JWT_REQUIRED_CLAIMS) - set(payload.keys()))
+    algorithm = current_app.config['JWT_ALGORITHM']
+    required_claim_list = current_app.config['JWT_REQUIRED_CLAIMS']
+
+    missing_claims = list(set(required_claim_list) - set(payload.keys()))
 
     if missing_claims:
         raise ValueError(
@@ -99,8 +100,10 @@ def _jwt_decode_handler(token):
     if not isinstance(token, (str, bytes)):
         raise ValueError(f'{type(token)} is not a valid JWT string')
 
-    options = {'require_' + claim: True for claim in JWT_REQUIRED_CLAIMS}
-    options.update({'verify_' + claim: True for claim in JWT_VERIFY_CLAIMS})
+    required_claim_list = current_app.config['JWT_REQUIRED_CLAIMS']
+
+    options = {'require_' + claim: True for claim in required_claim_list}
+    options.update({'verify_' + claim: True for claim in required_claim_list})
 
     parameters = {
         'jwt': token,
@@ -108,8 +111,10 @@ def _jwt_decode_handler(token):
         'leeway': current_app.config['JWT_LEEWAY'],
         'options': options,
         'algorithms': [current_app.config['JWT_ALGORITHM']],
-        'issuer': current_app.config['JWT_ISSUER']
     }
+
+    if 'iss' in required_claim_list:
+        parameters['issuer'] = current_app.config['JWT_ISSUER']
 
     try:
         payload = jwt.decode(**parameters)

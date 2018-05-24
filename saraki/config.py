@@ -19,3 +19,5 @@ JWT_EXPIRATION_DELTA = timedelta(seconds=300)
 JWT_AUTH_HEADER_PREFIX = 'JWT'
 
 JWT_ISSUER = SERVER_NAME
+
+JWT_REQUIRED_CLAIMS = ['exp', 'iat', 'sub']

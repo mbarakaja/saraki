@@ -112,26 +112,41 @@ class Test_get_incoming_request_token(object):
 
 class Test_jwt_payload_generator(object):
 
-    def test_included_claims(self, _ctx):
+    def test_default_included_claims(self, _ctx):
 
         payload = _jwt_payload_generator(AppUser())
 
-        assert 'iss' in payload
+        assert len(payload) is 3
         assert 'iat' in payload
         assert 'exp' in payload
         assert 'sub' in payload
 
-    def test_iss_claim_when_no_JWT_ISSUER_or_SERVER_NAME_is_set(self, _app):
+    def test_iss_claim_when_no_JWT_ISSUER_or_SERVER_NAME_are_set(self, _app):
         _app.config['SERVER_NAME'] = None
         _app.config['JWT_ISSUER'] = None
+        _app.config['JWT_REQUIRED_CLAIMS'] = ['iss']
 
-        error = 'Neither JWT_ISSUER nor SERVER_NAME is set'
+        error_msg = (
+            'The token payload could not be generated. The claim iss is '
+            'required, but neither JWT_ISSUER nor SERVER_NAME are provided'
+        )
 
-        with pytest.raises(RuntimeError, match=error):
+        with pytest.raises(RuntimeError, match=error_msg):
             with _app.app_context():
                 _jwt_payload_generator(AppUser())
 
+    def test_iss_claim_inclusion_only_when_required(self, _app):
+        _app.config['JWT_REQUIRED_CLAIMS'] = []
+        _app.config['SERVER_NAME'] = 'server.name'
+        _app.config['JWT_ISSUER'] = 'acme.issuer'
+
+        with _app.app_context():
+            payload = _jwt_payload_generator(AppUser())
+
+        assert 'iss' not in payload
+
     def test_iss_claim(self, _app):
+        _app.config['JWT_REQUIRED_CLAIMS'] = ['iss']
         _app.config['SERVER_NAME'] = 'server.name'
         _app.config['JWT_ISSUER'] = 'acme.issuer'
 
@@ -141,6 +156,7 @@ class Test_jwt_payload_generator(object):
         assert payload['iss'] == 'acme.issuer'
 
     def test_iss_claim_fallback_to_server_name(self, _app):
+        _app.config['JWT_REQUIRED_CLAIMS'] = ['iss']
         _app.config['SERVER_NAME'] = 'server.name'
         _app.config['JWT_ISSUER'] = None
 
@@ -186,7 +202,8 @@ class Test_jwt_encode_handler(object):
             'iss': 'acme.local',
             'sub': 'Coy0te',
             'iat': iat,
-            'exp': exp
+            'exp': exp,
+            'custom': 'custom claim value',
         })
 
         _payload = jwt.decode(token, verify=False)
@@ -195,8 +212,10 @@ class Test_jwt_encode_handler(object):
         assert _payload['sub'] == 'Coy0te'
         assert _payload['iat'] == timegm(iat.utctimetuple())
         assert _payload['exp'] == timegm(exp.utctimetuple())
+        assert _payload['custom'] == 'custom claim value'
 
-    def test_with_missing_iss_claim(self, _ctx):
+    def test_with_missing_iss_claim(self, _app, _ctx):
+        _app.config['JWT_REQUIRED_CLAIMS'] = ['iss']
         iat = datetime.utcnow()
         exp = iat + timedelta(seconds=300)
 
@@ -244,6 +263,7 @@ class Test_jwt_decode_handler(object):
     def test_token_with_wrong_iss_claim(self, _app, _payload):
         _app.config['SERVER_NAME'] = 'acme.local'
         _app.config['JWT_LEEWAY'] = timedelta(seconds=10)
+        _app.config['JWT_REQUIRED_CLAIMS'] = ['iss']
 
         _payload['iss'] = 'malicious.issuer'
 
@@ -253,7 +273,8 @@ class Test_jwt_decode_handler(object):
             with _app.app_context():
                 _jwt_decode_handler(token)
 
-    def test_token_without_iss_claim(self, _app, _payload):
+    def test_token_without_iss_claim_when_is_required(self, _app, _payload):
+        _app.config['JWT_REQUIRED_CLAIMS'] = ['iss']
         _app.config['SERVER_NAME'] = 'acme.local'
         _app.config['JWT_LEEWAY'] = timedelta(seconds=10)
         del _payload['iss']
@@ -306,6 +327,16 @@ class Test_jwt_decode_handler(object):
         with pytest.raises(JWTError, match='Invalid or malformed token'):
             with _app.app_context():
                 _jwt_decode_handler(token)
+
+    def test_with_valid_token_without_iss(self, _app, _payload):
+        _app.config['JWT_LEEWAY'] = timedelta(seconds=10)
+
+        token = jwt.encode(_payload, _app.config['SECRET_KEY'])
+
+        with _app.app_context():
+            decoded_payload = _jwt_decode_handler(token)
+
+        assert decoded_payload['sub'] == 'Coy0te'
 
     def test_with_valid_token(self, _app, _payload):
         _app.config['SERVER_NAME'] = 'acme.local'
