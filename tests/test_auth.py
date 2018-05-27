@@ -2,16 +2,35 @@ import jwt
 import pytest
 from json import dumps, loads
 from werkzeug.exceptions import BadRequest
-from flask import Flask
 from calendar import timegm
 from datetime import datetime, timedelta
 from unittest.mock import patch
 from saraki import Saraki
 from saraki.exc import NotFoundCredentialError, InvalidPasswordError, \
-    InvalidUserError, JWTError
-from saraki.auth import Auth, _verify_username, _authenticate_with_password, \
+    InvalidUserError, JWTError, AuthorizationError, TokenNotFoundError
+from saraki.auth import _verify_username, _authenticate_with_password, \
     _get_incoming_request_token, _jwt_payload_generator, _jwt_encode_handler, \
-    _jwt_decode_handler, _authenticate_with_token, _authentication_endpoint
+    _jwt_decode_handler, _authenticate_with_token, _authentication_endpoint, \
+    _is_authorized, _validate_request, require_auth
+
+
+parametrize = pytest.mark.parametrize
+
+
+def getpayload(scp=None, sub=None):
+    iat = datetime.utcnow()
+    exp = iat + timedelta(seconds=6000)
+    payload = {
+        'iss': 'acme.local',
+        'sub': sub or 'Coy0te',
+        'iat': iat,
+        'exp': exp,
+    }
+
+    if scp:
+        payload['scp'] = scp
+
+    return payload
 
 
 @pytest.fixture
@@ -40,9 +59,7 @@ def _request_ctx(_app):
 
 @pytest.fixture
 def _payload():
-    iat = datetime.utcnow()
-    exp = iat + timedelta(seconds=6000)
-    return {'iss': 'acme.local', 'sub': 'Coy0te', 'iat': iat, 'exp': exp}
+    return getpayload()
 
 
 class AppUser(object):
@@ -351,6 +368,92 @@ class Test_jwt_decode_handler(object):
         assert decoded_payload['sub'] == 'Coy0te'
 
 
+class Test_is_authorized(object):
+
+    def test_aud_claim_verification(self, _app, _request_ctx, _payload):
+
+        @_app.route('/<sub:username>/private-info')
+        def private_info(username):
+            return 'Private information'
+
+        _payload['sub'] = 'Coy0te'
+
+        with _request_ctx('/elmer/private-info'):
+            assert _is_authorized(_payload) is False
+
+        _payload['sub'] = 'elmer'
+
+        with _request_ctx('/elmer/private-info'):
+            assert _is_authorized(_payload) is True
+
+    def test_route_without_required_claim(self, _app, _request_ctx, _payload):
+
+        @_app.route('/private-info')
+        def private_info():
+            return 'Private information'
+
+        with _request_ctx('/private-info'):
+            assert _is_authorized(_payload) is True
+
+
+class Test_validate_request(object):
+
+    def test_request_without_access_token(self, _request_ctx):
+        excmsg = 'he request does not contain an access token'
+
+        with _request_ctx('/'):
+            with pytest.raises(TokenNotFoundError, match=excmsg):
+                _validate_request()
+
+    @patch('saraki.auth._verify_username')
+    @patch('saraki.auth._is_authorized')
+    @patch('saraki.auth._jwt_decode_handler')
+    @patch('saraki.auth._get_incoming_request_token')
+    def test_request_with_access_token(
+        self,
+        mocked_get_incoming_request_token,
+        mocked_jwt_decode_handler,
+        mocked_is_authorized,
+        mocked_verify_username,
+        _request_ctx
+    ):
+
+        mocked_get_incoming_request_token.return_value = 'a.nice.token'
+        mocked_jwt_decode_handler.return_value = {'sub': 'Coy0te'}
+
+        with _request_ctx('/'):
+            _validate_request()
+
+        mocked_get_incoming_request_token.assert_called_once()
+        mocked_jwt_decode_handler.assert_called_once_with('a.nice.token')
+        mocked_is_authorized.assert_called_once_with({'sub': 'Coy0te'})
+        mocked_verify_username.assert_called_once_with('Coy0te')
+
+    @patch('saraki.auth._is_authorized')
+    def test_with_unauthorized_token(self, mocked_is_authorized, _app):
+
+        token = jwt.encode(getpayload(), _app.config['SECRET_KEY']).decode()
+        headers = {'Authorization': f'JWT {token}'}
+
+        mocked_is_authorized.return_value = False
+
+        with _app.test_request_context('/', headers=headers):
+            with pytest.raises(AuthorizationError):
+                _validate_request()
+
+    @pytest.mark.usefixtures("data")
+    def test_with_unknown_username_in_sub_claim(self, app, _payload):
+
+        _payload['sub'] = 'unknown'
+
+        token = jwt.encode(_payload, app.config['SECRET_KEY']).decode()
+        headers = {'Authorization': f'JWT {token}'}
+
+        with app.test_request_context('/', headers=headers):
+            with pytest.raises(AuthorizationError):
+                _validate_request()
+
+
 class Test_authenticate_with_password(object):
 
     def test_with_unknown_username(self, ctx):
@@ -497,23 +600,83 @@ class TestRequestAccessToken(object):
         assert payload['sub'] == 'Coy0te'
 
 
-class TestAuth(object):
+class TestRequireAuth(object):
 
-    def test_instantiation(self):
-        auth = Auth()
-        assert not hasattr(auth, 'app')
+    @patch('saraki.auth._validate_request')
+    def test_call_to_validate_request(self, mocked_validate_request):
 
-        with patch.object(Auth, 'init_app') as mocked_init_app:
-            app = Flask(__name__)
-            auth = Auth(app)
-            mocked_init_app.assert_called_once_with(app)
+        @require_auth()
+        def private():
+            return 'private content'
 
-    def test_init_app(self):
-        app = Flask(__name__)
-        auth = Auth()
-        auth.init_app(app)
+        private()
 
-        adapter = app.url_map.bind('')
+        mocked_validate_request.assert_called_once()
 
-        assert adapter.match('/auth', method='POST')
-        assert auth.app is app
+    def test_required_aud_claim(self):
+        pass
+
+
+@pytest.mark.usefixtures("data")
+class TestEndpoint(object):
+
+    @parametrize(
+        "payload, expected",
+        [
+            (None, 404),
+            (getpayload(sub='unknown'), 404),
+            (getpayload(sub='Coy0te'), 200)
+        ]
+    )
+    def test_route_without_sub_variable_rule(self, _app, payload, expected):
+
+        client = _app.test_client()
+
+        @_app.route('/movies')
+        @require_auth()
+        def movies():
+            return 'movies'
+
+        headers = {}
+
+        if payload:
+            token = jwt.encode(
+                payload,
+                _app.config['SECRET_KEY'],
+                algorithm=_app.config['JWT_ALGORITHM']
+            )
+            headers['Authorization'] = f'JWT {token.decode()}'
+
+        assert client.get('/movies', headers=headers).status_code == expected
+
+    @parametrize(
+        "payload, expected",
+        [
+            (None, 404),
+            (getpayload(sub='unknown'), 404),
+            (getpayload(sub='R0adRunner'), 404),
+            (getpayload(sub='Coy0te'), 200)
+        ]
+    )
+    def test_route_with_sub_variable_rule(self, _app, payload, expected):
+
+        client = _app.test_client()
+
+        @_app.route('/<sub:username>/my-movies')
+        @require_auth()
+        def my_movies(username):
+            return 'Those are your movies'
+
+        headers = {}
+
+        if payload:
+            token = jwt.encode(
+                payload,
+                _app.config['SECRET_KEY'],
+                algorithm=_app.config['JWT_ALGORITHM']
+            )
+
+            headers['Authorization'] = f'JWT {token.decode()}'
+
+        rv = client.get('/Coy0te/my-movies', headers=headers)
+        assert rv.status_code == expected

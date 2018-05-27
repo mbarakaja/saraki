@@ -72,6 +72,10 @@ def app(request):
     app.config['SERVER_NAME'] = 'acme.local'
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('TEST_DATABASE_URI')
 
+    @app.route('/')
+    def index():
+        return 'index'
+
     database.init_app(app)
 
     return app

@@ -8,3 +8,4 @@ __version__ = '0.0.0'
 
 
 from saraki.app import Saraki  # noqa: F401
+from saraki.auth import require_auth  # noqa: F401

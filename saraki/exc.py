@@ -1,4 +1,7 @@
 
+class ProgrammingError(Exception):
+    pass
+
 
 class AuthenticationError(Exception):
     pass
@@ -18,5 +21,13 @@ class NotFoundCredentialError(AuthenticationError):
     pass
 
 
+class TokenNotFoundError(AuthenticationError):
+    pass
+
+
 class JWTError(AuthenticationError):
+    pass
+
+
+class AuthorizationError(Exception):
     pass

@@ -4,7 +4,7 @@
 """
 from flask import jsonify
 from .exc import NotFoundCredentialError, InvalidUserError, \
-    InvalidPasswordError, JWTError
+    InvalidPasswordError, JWTError, TokenNotFoundError, AuthorizationError
 
 
 def init_app(app):
@@ -29,3 +29,11 @@ def init_app(app):
     @app.errorhandler(400)
     def bad_request_400(error):
         return jsonify({'error': str(error)}), 400
+
+    @app.errorhandler(TokenNotFoundError)
+    def not_found_token_handler(error):
+        return jsonify({'error': str(error)}), 404
+
+    @app.errorhandler(AuthorizationError)
+    def authorization_error_handler(error):
+        return jsonify({'error': str(error)}), 404
