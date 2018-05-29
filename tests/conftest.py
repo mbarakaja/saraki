@@ -91,7 +91,7 @@ def db(app):
     with app.app_context():
         database.create_all()
 
-    yield
+    yield database
 
     with app.app_context():
         database.session.remove()
@@ -99,12 +99,16 @@ def db(app):
 
 
 @pytest.fixture(scope='session')
-def data(app, db):
+def data(db):
     """Put the database in a known state by inserting
     predefined data.
 
     This is a session scoped fixture.
     """
+
+    _app = Saraki(__name__, db=None)
+    _app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['TEST_DATABASE_URI']
+    db.init_app(_app)
 
     with open('tests/data/product.json', 'r') as products_file, \
             open('tests/data/order.json', 'r') as orders_file, \
@@ -118,7 +122,7 @@ def data(app, db):
         order_line_ls = load_json(order_lines_file.read())
         user_ls = load_json(users_file.read())
 
-    with app.app_context():
+    with _app.app_context():
         database.session.add_all([Person(**item) for item in person_ls])
         database.session.add_all([Product(**item) for item in product_ls])
         database.session.add_all([Order(**item) for item in order_ls])
@@ -150,7 +154,14 @@ def _trn():
 
 
 @pytest.fixture
-def client(app, _trn, request, db):
+def savepoint(db, _trn):
+    _trn.start()
+    yield
+    _trn.close()
+
+
+@pytest.fixture
+def client(app, ctx, savepoint):
     """Flask Test Client
 
     This starts a database nested transaction and then closes it
@@ -158,14 +169,14 @@ def client(app, _trn, request, db):
     made to the database.
     """
 
-    ctx = app.app_context()
-    ctx.push()
-    _trn.start()
+    return app.test_client()
 
-    yield app.test_client()
 
-    _trn.close()
-    ctx.pop()
+@pytest.fixture
+def xclient(app):
+    """Flask Test Client (No DB transaction)"""
+
+    return app.test_client()
 
 
 @pytest.fixture
