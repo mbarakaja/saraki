@@ -1,7 +1,18 @@
 import pytest
+from json import loads
 from sqlalchemy.orm import joinedload
-from saraki.utility import import_into_sqla_object, export_from_sqla_object
-from common import Product, Order
+from werkzeug.exceptions import UnsupportedMediaType, BadRequest
+from flask import Flask, make_response
+from common import Product, Order, Dummy
+from saraki.utility import import_into_sqla_object, export_from_sqla_object, \
+    json
+
+
+@pytest.fixture
+def _app():
+    app = Flask(__name__)
+    app.testing = True
+    return app
 
 
 def test_import_into_sqla_object():
@@ -161,3 +172,133 @@ class Test_export_from_sqla_object():
         assert type(lst) == list
         assert len(lst) == 2
         assert {'id': 1, 'customer_id': 1} in lst
+
+
+class TestJson(object):
+
+    @pytest.mark.parametrize(
+        "returned, expected",
+        [
+            ({'id': 1}, {'id': 1}),
+            ([1, 2, 3], [1, 2, 3]),
+            (Dummy(id=2), {'id': 2}),
+            ('Hello', 'Hello'),
+            (1, 1),
+            (None, None),
+        ]
+    )
+    def test_returning_single_objects(self, returned, expected, _app):
+
+        @json
+        def view_func():
+            return returned
+
+        with _app.test_request_context('/'):
+            rv = view_func()
+
+        assert rv.status_code == 200
+        assert rv.content_type == 'application/json'
+        assert loads(rv.data) == expected
+
+    @pytest.mark.parametrize(
+        "returned, expected",
+        [
+            (({'id': 1}, 500), (500, {'id': 1})),
+            (([1, 2, 3], 404), (404, [1, 2, 3])),
+            ((Dummy(id=2), 201), (201, {'id': 2})),
+            (('Hello', 201), (201, 'Hello')),
+            ((1, 201), (201, 1)),
+            ((None, 201), (201, None)),
+        ]
+    )
+    def test_returning_explicit_status_code(self, returned, expected, _app):
+
+        @json
+        def view_func():
+            return returned
+
+        with _app.test_request_context('/'):
+            rv = view_func()
+
+        assert rv.status_code == expected[0]
+        assert rv.content_type == 'application/json'
+        assert loads(rv.data) == expected[1]
+
+    @pytest.mark.parametrize(
+        "returned, expected",
+        [
+            (({'id': 1}, 500, {'X-header': 'x-value'}), (500, {'id': 1})),
+            (([1, 2, 3], 404, {'X-header': 'x-value'}), (404, [1, 2, 3])),
+            ((Dummy(id=2), 201, {'X-header': 'x-value'}), (201, {'id': 2})),
+            (('Hello', 201, {'X-header': 'x-value'}), (201, 'Hello')),
+            ((1, 201, {'X-header': 'x-value'}), (201, 1)),
+            ((None, 201, {'X-header': 'x-value'}), (201, None)),
+        ]
+    )
+    def test_returning_extra_http_header(self, returned, expected, _app):
+
+        @json
+        def view_func():
+            return returned
+
+        with _app.test_request_context():
+            rv = view_func()
+
+        assert rv.status_code == expected[0]
+        assert loads(rv.data) == expected[1]
+        assert rv.content_type == 'application/json'
+        assert rv.headers['X-header'] == 'x-value'
+
+    def test_returning_custom_response(self, _app):
+
+        @json
+        def index():
+            return make_response('Hello world', 201)
+
+        with _app.test_request_context('/'):
+            rv = index()
+
+        assert rv.status_code == 201
+        assert rv.data == b'Hello world'
+        assert rv.content_type != 'application/json'
+
+    def test_post_request_with_wrong_content_type(self, _app):
+
+        @json
+        def view_func():
+            pass
+
+        config = {'method': 'POST', 'content_type': 'text/plain'}
+        error_message = 'application/json mimetype expected'
+
+        with _app.test_request_context(**config):
+            with pytest.raises(UnsupportedMediaType, match=error_message):
+                view_func()
+
+    def test_post_request_with_invalid_json_object(self, _app):
+
+        @json
+        def view_func():
+            pass
+
+        config = {'method': 'POST', 'content_type': 'application/json'}
+        error_message = 'The body request has an invalid JSON object'
+
+        with _app.test_request_context(**config):
+            with pytest.raises(BadRequest, match=error_message):
+                view_func()
+
+    def test_post_request_with_valid_json_object(self, _app):
+
+        @json
+        def view_func():
+            pass
+
+        config = {
+            'method': 'POST',
+            'content_type': 'application/json',
+            'data': '{}',
+        }
+
+        with _app.test_request_context(**config):
+            view_func()

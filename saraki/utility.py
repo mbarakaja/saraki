@@ -1,7 +1,11 @@
 import datetime
+from functools import wraps
+
 from sqlalchemy import inspect
 from sqlalchemy.orm.collections import InstrumentedList
 from sqlalchemy.exc import NoInspectionAvailable
+from flask import request, abort, jsonify
+from flask.wrappers import Response
 
 
 schema_type_conversions = {
@@ -150,3 +154,80 @@ def generate_schema(model_class, include=[], exclude=[]):
         schema[name] = prop
 
     return schema
+
+
+def json(func):
+    """Decorator for flask view functions.
+
+    Check if the request is properly formatted before calling the view
+    function. Next, get the return value of the view function and transform it
+    into a JSON response in a standardized way.
+
+    You can return the next values:
+
+    1.  A single object. Can be any JSON serializable object, a Flask Response
+        object, or a SQLAlchemy model::
+
+            return {}
+
+            # This return a Flask Response too.
+            return make_response(...)
+
+            # SQLAlchemy model
+            return Mode.query.filter_by(prop=prop).first()
+
+            return []
+
+            return "..."
+
+    2.  A tuple in the form **(body, status, headers)**, the response body can
+        be any python built-in type, or a SQLAlchemy based model object.::
+
+            return {}, 201
+
+            return [], 201
+
+            return '...', 400
+
+            return {}, 201, {'X-Header': 'content'}
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+
+        if request.method == 'POST':
+            if request.content_type is None or \
+               'application/json' not in request.content_type:
+                abort(415, 'application/json mimetype expected')
+
+            if request.get_json(silent=True) is None:
+                abort(400, 'The body request has an invalid JSON object')
+
+        ro = func(*args, **kwargs)  # returned object
+
+        is_tuple = type(ro) == tuple
+
+        if not is_tuple:
+            if isinstance(ro, (int, bool, str, list, dict, list)):
+                return jsonify(ro)
+
+            if isinstance(ro, Response):
+                return ro
+
+            ro = (ro,)
+
+        body, status, headers = ro + (None,) * (3 - len(ro))
+
+        if hasattr(body, '__table__'):
+            body = export_from_sqla_object(body)
+
+        response_object = jsonify(body)
+
+        if status:
+            response_object.status_code = status
+
+        if headers:
+            response_object.headers.extend(headers or {})
+
+        return response_object
+    return wrapper

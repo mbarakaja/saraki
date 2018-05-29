@@ -5,6 +5,12 @@ from sqlalchemy.orm import relationship
 from saraki.model import BaseModel
 
 
+class Dummy(BaseModel):
+    __tablename__ = 'dummy'
+
+    id = Column(Integer, primary_key=True)
+
+
 class Person(BaseModel):
 
     __tablename__ = 'person'
