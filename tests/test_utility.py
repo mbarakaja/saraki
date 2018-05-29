@@ -27,6 +27,7 @@ def test_import_into_sqla_object():
     assert product.price == 99
 
 
+@pytest.mark.usefixtures("data")
 class Test_export_from_sqla_object():
 
     def test_with_invalid_arguments(self):
