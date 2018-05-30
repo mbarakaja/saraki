@@ -1,6 +1,7 @@
 import datetime
 from functools import wraps
 
+from cerberus import Validator as _Validator
 from sqlalchemy import inspect
 from sqlalchemy.orm.collections import InstrumentedList
 from sqlalchemy.exc import NoInspectionAvailable
@@ -231,3 +232,35 @@ def json(func):
 
         return response_object
     return wrapper
+
+
+class Validator(_Validator):
+
+    def __init__(self, schema, model_class=None, **kwargs):
+        super(Validator, self).__init__(schema, **kwargs)
+        self.model_class = model_class
+
+    def validate(self, document, model=None, **kwargs):
+
+        update = kwargs.get('update', False)
+
+        if update is True and model is None:
+            raise RuntimeError(
+                'update is set to True but model is None. Provide a SQLAlchemy'
+                ' model instance in order to perform uniqueness validation'
+                ' against the model'
+            )
+
+        self.model = model
+
+        return super(Validator, self).validate(document, **kwargs)
+
+    def _validate_unique(self, is_unique, field, value, **kwargs):
+
+        if is_unique:
+            filter = {field: value}
+            model = self.model_class.query.filter_by(**filter).first()
+
+            if model and (not self.update or model is not self.model):
+                self._error(
+                    field, f'Must be unique, but \'{value}\' already exist')

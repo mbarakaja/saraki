@@ -5,7 +5,7 @@ from werkzeug.exceptions import UnsupportedMediaType, BadRequest
 from flask import Flask, make_response
 from common import Product, Order, Dummy
 from saraki.utility import import_into_sqla_object, export_from_sqla_object, \
-    json
+    json, Validator
 
 
 @pytest.fixture
@@ -303,3 +303,45 @@ class TestJson(object):
 
         with _app.test_request_context(**config):
             view_func()
+
+
+@pytest.mark.usefixtures("data")
+class TestValidator:
+
+    def test_constructor(self):
+        v = Validator({}, Order)
+        assert v.model_class is Order
+
+    def test_validate_method(self):
+        v = Validator({}, Product)
+
+        error_message = 'Provide a SQLAlchemy model instance'
+
+        with pytest.raises(RuntimeError, match=error_message):
+            v.validate({}, update=True)
+
+        model = {}
+        v.validate({}, update=True, model=model)
+        assert v.model is model
+
+    def test_unique_rule(self, ctx):
+        v = Validator({'name': {'unique': True}}, Product)
+
+        assert v.validate({'name': 'product name'}) is True
+
+        error_message = "Must be unique, but 'Acme anvils' already exist"
+        assert v.validate({'name': 'Acme anvils'}) is False
+        assert error_message in v.errors['name']
+
+    def test_unique_rule_updating(self, ctx):
+        model = Product.query.filter_by(name='Acme anvils').one()
+
+        v = Validator({'name': {'unique': True}}, Product)
+
+        kargs = {'update': True, 'model': model}
+        assert v.validate({'name': 'Acme anvils'}, **kargs) is True
+        assert v.validate({'name': 'new product name'}, **kargs) is True
+        assert v.validate({'name': 'Binocular'}, **kargs) is False
+
+        error_message = "Must be unique, but 'Binocular' already exist"
+        assert error_message in v.errors['name']
