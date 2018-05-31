@@ -5,7 +5,7 @@ from saraki.model import database
 
 app = Saraki(__name__, db=None)
 app.config['SECRET_KEY'] = 'secret'
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('TEST_DATABASE_URI')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['TEST_DATABASE_URI']
 database.init_app(app)
 
 
@@ -26,9 +26,9 @@ def user_info(username):
     return f'This information is just for {username}'
 
 
-with app.app_context():
-    database.create_all()
-
-
 if __name__ == '__main__':
+
+    with app.app_context():
+        database.create_all()
+
     app.run()

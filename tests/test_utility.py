@@ -2,17 +2,10 @@ import pytest
 from json import loads
 from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import UnsupportedMediaType, BadRequest
-from flask import Flask, make_response
+from flask import make_response
 from common import Product, Order, Dummy
 from saraki.utility import import_into_sqla_object, export_from_sqla_object, \
     json, Validator
-
-
-@pytest.fixture
-def _app():
-    app = Flask(__name__)
-    app.testing = True
-    return app
 
 
 def test_import_into_sqla_object():
@@ -27,7 +20,7 @@ def test_import_into_sqla_object():
     assert product.price == 99
 
 
-@pytest.mark.usefixtures("data")
+@pytest.mark.usefixtures('data')
 class Test_export_from_sqla_object():
 
     def test_with_invalid_arguments(self):
@@ -188,13 +181,13 @@ class TestJson(object):
             (None, None),
         ]
     )
-    def test_returning_single_objects(self, returned, expected, _app):
+    def test_return_single_objects(self, returned, expected, request_ctx):
 
         @json
         def view_func():
             return returned
 
-        with _app.test_request_context('/'):
+        with request_ctx('/'):
             rv = view_func()
 
         assert rv.status_code == 200
@@ -212,13 +205,13 @@ class TestJson(object):
             ((None, 201), (201, None)),
         ]
     )
-    def test_returning_explicit_status_code(self, returned, expected, _app):
+    def test_return_status_code(self, returned, expected, request_ctx):
 
         @json
         def view_func():
             return returned
 
-        with _app.test_request_context('/'):
+        with request_ctx('/'):
             rv = view_func()
 
         assert rv.status_code == expected[0]
@@ -236,13 +229,13 @@ class TestJson(object):
             ((None, 201, {'X-header': 'x-value'}), (201, None)),
         ]
     )
-    def test_returning_extra_http_header(self, returned, expected, _app):
+    def test_return_extra_http_header(self, returned, expected, request_ctx):
 
         @json
         def view_func():
             return returned
 
-        with _app.test_request_context():
+        with request_ctx():
             rv = view_func()
 
         assert rv.status_code == expected[0]
@@ -250,46 +243,44 @@ class TestJson(object):
         assert rv.content_type == 'application/json'
         assert rv.headers['X-header'] == 'x-value'
 
-    def test_returning_custom_response(self, _app):
+    def test_return_custom_response(self, request_ctx):
 
         @json
         def index():
             return make_response('Hello world', 201)
 
-        with _app.test_request_context('/'):
+        with request_ctx('/'):
             rv = index()
 
         assert rv.status_code == 201
         assert rv.data == b'Hello world'
         assert rv.content_type != 'application/json'
 
-    def test_post_request_with_wrong_content_type(self, _app):
+    def test_post_request_with_wrong_content_type(self, request_ctx):
 
         @json
         def view_func():
             pass
 
-        config = {'method': 'POST', 'content_type': 'text/plain'}
         error_message = 'application/json mimetype expected'
 
-        with _app.test_request_context(**config):
+        with request_ctx(method='POST', content_type='text/plain'):
             with pytest.raises(UnsupportedMediaType, match=error_message):
                 view_func()
 
-    def test_post_request_with_invalid_json_object(self, _app):
+    def test_post_request_with_invalid_json_object(self, request_ctx):
 
         @json
         def view_func():
             pass
 
-        config = {'method': 'POST', 'content_type': 'application/json'}
         error_message = 'The body request has an invalid JSON object'
 
-        with _app.test_request_context(**config):
+        with request_ctx(method='POST', content_type='application/json'):
             with pytest.raises(BadRequest, match=error_message):
                 view_func()
 
-    def test_post_request_with_valid_json_object(self, _app):
+    def test_post_request_with_valid_json_object(self, request_ctx):
 
         @json
         def view_func():
@@ -301,7 +292,7 @@ class TestJson(object):
             'data': '{}',
         }
 
-        with _app.test_request_context(**config):
+        with request_ctx(**config):
             view_func()
 
 

@@ -4,60 +4,60 @@ from saraki.utility import generate_schema
 
 
 @pytest.fixture(scope='module')
-def schema():
+def _schema():
     return generate_schema(Product)
 
 
-def test_included_properties(schema):
+def test_included_properties(_schema):
 
-    assert len(schema) == 7
-    assert 'id' in schema
-    assert 'name' in schema
-    assert 'color' in schema
-    assert 'price' in schema
-    assert 'created_at' in schema
-    assert 'updated_at' in schema
-    assert 'enabled' in schema
-
-
-def test_primary_key_column(schema):
-    assert schema['id']['readonly'] is True
+    assert len(_schema) == 7
+    assert 'id' in _schema
+    assert 'name' in _schema
+    assert 'color' in _schema
+    assert 'price' in _schema
+    assert 'created_at' in _schema
+    assert 'updated_at' in _schema
+    assert 'enabled' in _schema
 
 
-def test_integer_data_type(schema):
-    assert schema['id']['type'] == 'integer'
-    assert schema['price']['type'] == 'integer'
+def test_primary_key_column(_schema):
+    assert _schema['id']['readonly'] is True
 
 
-def test_string_data_type_with_max_length(schema):
-    assert schema['name']['type'] == 'string'
-    assert schema['name']['maxlength'] == 120
+def test_integer_data_type(_schema):
+    assert _schema['id']['type'] == 'integer'
+    assert _schema['price']['type'] == 'integer'
 
 
-def test_string_data_type_without_max_length(schema):
-    assert schema['color']['type'] == 'string'
-    assert 'maxlength' not in schema['color']
+def test_string_data_type_with_max_length(_schema):
+    assert _schema['name']['type'] == 'string'
+    assert _schema['name']['maxlength'] == 120
 
 
-def test_datetime_data_type(schema):
-    assert schema['created_at']['type'] == 'string'
-    assert schema['updated_at']['type'] == 'string'
+def test_string_data_type_without_max_length(_schema):
+    assert _schema['color']['type'] == 'string'
+    assert 'maxlength' not in _schema['color']
 
 
-def test_boolean_data_type(schema):
-    assert schema['enabled']['type'] == 'boolean'
+def test_datetime_data_type(_schema):
+    assert _schema['created_at']['type'] == 'string'
+    assert _schema['updated_at']['type'] == 'string'
 
 
-def test_non_nullable_columns(schema):
-    assert schema['name']['required'] is True
+def test_boolean_data_type(_schema):
+    assert _schema['enabled']['type'] == 'boolean'
 
 
-def test_non_nullable_column_with_default_value(schema):
-    assert 'required' not in schema['created_at']
+def test_non_nullable_columns(_schema):
+    assert _schema['name']['required'] is True
 
 
-def test_non_nullable_columns_with_server_default_value(schema):
-    assert 'required' not in schema['updated_at']
+def test_non_nullable_column_with_default_value(_schema):
+    assert 'required' not in _schema['created_at']
+
+
+def test_non_nullable_columns_with_server_default_value(_schema):
+    assert 'required' not in _schema['updated_at']
 
 
 def test_include_argument():

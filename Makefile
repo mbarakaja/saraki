@@ -55,12 +55,13 @@ lint: ## check style with flake8
 
 test: ## run tests quickly with the default Python
 	python -m pytest
+	python -m pytest examples/
 
 test-all: ## run tests on every Python version with tox
 	tox
 
 coverage: ## check code coverage quickly with the default Python
-	coverage run --source saraki -m pytest
+	coverage run --branch --source saraki -m pytest tests/
 	coverage report -m
 	coverage html
 	$(BROWSER) htmlcov/index.html

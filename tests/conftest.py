@@ -1,11 +1,9 @@
 import os
 import pytest
 from json import loads as load_json
-from sqlalchemy import event
-from sqlalchemy.orm import sessionmaker, scoped_session
 from saraki import Saraki
 from saraki.model import database, AppUser
-from common import Person, Product, Order, OrderLine
+from common import Person, Product, Order, OrderLine, TransactionManager
 
 
 needdatabase = pytest.mark.skipif(
@@ -14,92 +12,32 @@ needdatabase = pytest.mark.skipif(
 )
 
 
-class TransactionManager(object):
-    """Helper that starts and closes PostgreSQL Savepoints. It allow to create
-    savepoints and rollback to previous state."""
-
-    session = None
-    connection = None
-    transaction = None
-
-    def __init__(self, database):
-        self.database = database
-
-    def started(self):
-        return self.connection and not self.connection.closed
-
-    def start(self):
-
-        if self.started():
-            self.close()
-
-        connection = self.database.engine.connect()
-
-        # begin a non-ORM transaction
-        transaction = connection.begin()
-
-        options = dict(bind=self.database.engine)
-        session = scoped_session(sessionmaker(**options))
-
-        self.database.session = session
-
-        # start a session in a SAVEPOINT...
-        session.begin_nested()
-
-        # then each time that SAVEPOINT ends, reopen it
-        @event.listens_for(session, "after_transaction_end")
-        def restart_savepoint(session, transaction):
-            if transaction.nested and not transaction._parent.nested:
-                session.expire_all()
-                session.begin_nested()
-
-        self.session = session
-        self.connection = connection
-        self.transaction = transaction
-
-    def close(self):
-        self.session.close()
-        self.transaction.rollback()
-        self.connection.close()
-
-
 @pytest.fixture(scope='session')
-def app(request):
-
-    app = Saraki('flask_test', root_path=os.path.dirname(__file__), db=None)
-    app.config['TESTING'] = True
-    app.config['SECRET_KEY'] = 'secret'
-    app.config['SERVER_NAME'] = 'acme.local'
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('TEST_DATABASE_URI')
-
-    @app.route('/')
-    def index():
-        return 'index'
-
-    database.init_app(app)
-
-    return app
-
-
-@pytest.fixture(scope='session')
-def db(app):
+def _setup_database(request):
     """Setup the database
 
     Creates all tables on setup and deletes all tables on cleanup.
     """
 
-    with app.app_context():
+    _app = Saraki(__name__, db=None)
+    _app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['TEST_DATABASE_URI']
+    database.init_app(_app)
+
+    with _app.app_context():
         database.create_all()
 
-    yield database
+    def teardown():
+        with _app.app_context():
+            database.session.remove()
+            database.drop_all()
 
-    with app.app_context():
-        database.session.remove()
-        database.drop_all()
+    request.addfinalizer(teardown)
+
+    return database
 
 
 @pytest.fixture(scope='session')
-def data(db):
+def _insert_data(_setup_database):
     """Put the database in a known state by inserting
     predefined data.
 
@@ -108,7 +46,7 @@ def data(db):
 
     _app = Saraki(__name__, db=None)
     _app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['TEST_DATABASE_URI']
-    db.init_app(_app)
+    database.init_app(_app)
 
     with open('tests/data/product.json', 'r') as products_file, \
             open('tests/data/order.json', 'r') as orders_file, \
@@ -143,6 +81,11 @@ def data(db):
         database.session.commit()
 
 
+@pytest.fixture
+def data(_insert_data, database_conn):
+    pass
+
+
 @pytest.fixture(scope='session')
 def _trn():
     """Create a session wide instance of TransactionManager class.
@@ -154,14 +97,58 @@ def _trn():
 
 
 @pytest.fixture
-def savepoint(db, _trn):
-    _trn.start()
-    yield
-    _trn.close()
+def app(request):
+
+    app = Saraki('flask_test', root_path=os.path.dirname(__file__), db=None)
+    app.config['TESTING'] = True
+    app.config['SECRET_KEY'] = 'secret'
+
+    return app
 
 
 @pytest.fixture
-def client(app, ctx, savepoint):
+def request_ctx(app):
+    return app.test_request_context
+
+
+@pytest.fixture
+def database_conn(app):
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('TEST_DATABASE_URI')
+    database.init_app(app)
+
+
+@pytest.fixture
+def savepoint(_setup_database, database_conn, _trn, request):
+    _trn.start()
+
+    def teardown():
+        _trn.close()
+
+    request.addfinalizer(teardown)
+
+
+@pytest.fixture
+def ctx(app, request):
+    """Push a new application context and closes it automatically
+    when the test goes out of scope.
+
+    This helps to avoid creating application contexts manually
+    either by calling app.app_context() with python `with` statement or
+    by pushing or popping manually.
+    """
+    ctx = app.app_context()
+    ctx.push()
+
+    def teardown():
+        ctx.pop()
+
+    request.addfinalizer(teardown)
+
+    return ctx
+
+
+@pytest.fixture
+def client(app, ctx, savepoint, database_conn):
     """Flask Test Client
 
     This starts a database nested transaction and then closes it
@@ -177,19 +164,3 @@ def xclient(app):
     """Flask Test Client (No DB transaction)"""
 
     return app.test_client()
-
-
-@pytest.fixture
-def ctx(app):
-    """Push a new application context and closes it automatically
-    when the test goes out of scope.
-
-    This helps to avoid creating application contexts manually
-    either by calling app.app_context() with python `with` statement or
-    by pushing or popping manually."""
-    ctx = app.app_context()
-    ctx.push()
-
-    yield ctx
-
-    ctx.pop()
