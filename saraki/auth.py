@@ -189,9 +189,11 @@ def _validate_request():
         raise AuthorizationError('Invalid access token for this resource')
 
     try:
-        _verify_username(payload['sub'])
+        identity = _verify_username(payload['sub'])
     except InvalidUserError as e:
         raise AuthorizationError('Invalid access token for this resource')
+
+    _request_ctx_stack.top.current_identity = identity
 
 
 # ~~~~~~~~~~~~~~~~~~~~~

@@ -9,12 +9,14 @@ def test_basic():
 
     assert isinstance(app.auth, Auth)
     assert app.extensions['sqlalchemy'].db is database
+    assert 'app' in app.blueprints
 
 
 def test_without_auth_object():
     app = Saraki(__name__, auth=None)
 
     assert not hasattr(app, 'auth')
+    assert 'app' not in app.blueprints
 
 
 def test_passing_custom_auth_object():
@@ -22,6 +24,7 @@ def test_passing_custom_auth_object():
     app = Saraki(__name__, auth=auth)
 
     assert app.auth is auth
+    assert 'app' in app.blueprints
 
 
 def test_without_database_object():

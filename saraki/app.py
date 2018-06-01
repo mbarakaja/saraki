@@ -2,7 +2,7 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from . import errors
 from . import config as _default_config
-from .handlers import signup_view
+from .handlers import signup_view, appbp
 from .model import database
 from .auth import Auth
 
@@ -25,6 +25,7 @@ class Saraki(Flask):
         if isinstance(auth, Auth):
             self.auth = auth
             self.auth.init_app(self)
+            self.register_blueprint(appbp)
 
         if isinstance(db, SQLAlchemy):
             db.init_app(self)
