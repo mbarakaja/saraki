@@ -1,7 +1,7 @@
 from passlib.hash import bcrypt_sha256
 from sqlalchemy import Column, Integer, String, Boolean
 from flask_sqlalchemy import SQLAlchemy
-from saraki.utility import import_into_sqla_object
+from saraki.utility import import_into_sqla_object, export_from_sqla_object
 
 database = SQLAlchemy()
 BaseModel = database.Model
@@ -13,6 +13,9 @@ class Model(BaseModel):
 
     def import_data(self, data):
         return import_into_sqla_object(self, data)
+
+    def export_data(self, include=[], exclude=[]):
+        return export_from_sqla_object(self, include, exclude)
 
 
 class AppUser(Model):

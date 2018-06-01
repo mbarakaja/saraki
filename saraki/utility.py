@@ -220,7 +220,8 @@ def json(func):
         body, status, headers = ro + (None,) * (3 - len(ro))
 
         if hasattr(body, '__table__'):
-            body = export_from_sqla_object(body)
+            body = body.export_data() if hasattr(body, 'export_data') \
+                else export_from_sqla_object(body)
 
         response_object = jsonify(body)
 

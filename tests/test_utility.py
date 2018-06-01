@@ -3,7 +3,7 @@ from json import loads
 from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import UnsupportedMediaType, BadRequest
 from flask import make_response
-from common import Product, Order, Dummy
+from common import Product, Order, DummyBaseModel, DummyModel
 from saraki.utility import import_into_sqla_object, export_from_sqla_object, \
     json, Validator
 
@@ -175,7 +175,8 @@ class TestJson(object):
         [
             ({'id': 1}, {'id': 1}),
             ([1, 2, 3], [1, 2, 3]),
-            (Dummy(id=2), {'id': 2}),
+            (DummyBaseModel(id=2), {'id': 2}),
+            (DummyModel(id=2), {'id': 2}),
             ('Hello', 'Hello'),
             (1, 1),
             (None, None),
@@ -199,7 +200,8 @@ class TestJson(object):
         [
             (({'id': 1}, 500), (500, {'id': 1})),
             (([1, 2, 3], 404), (404, [1, 2, 3])),
-            ((Dummy(id=2), 201), (201, {'id': 2})),
+            ((DummyBaseModel(id=2), 201), (201, {'id': 2})),
+            ((DummyModel(id=2), 201), (201, {'id': 2})),
             (('Hello', 201), (201, 'Hello')),
             ((1, 201), (201, 1)),
             ((None, 201), (201, None)),
@@ -223,7 +225,14 @@ class TestJson(object):
         [
             (({'id': 1}, 500, {'X-header': 'x-value'}), (500, {'id': 1})),
             (([1, 2, 3], 404, {'X-header': 'x-value'}), (404, [1, 2, 3])),
-            ((Dummy(id=2), 201, {'X-header': 'x-value'}), (201, {'id': 2})),
+            (
+                (DummyBaseModel(id=2), 201, {'X-header': 'x-value'}),
+                (201, {'id': 2})
+            ),
+            (
+                (DummyModel(id=2), 201, {'X-header': 'x-value'}),
+                (201, {'id': 2})
+            ),
             (('Hello', 201, {'X-header': 'x-value'}), (201, 'Hello')),
             ((1, 201, {'X-header': 'x-value'}), (201, 1)),
             ((None, 201, {'X-header': 'x-value'}), (201, None)),

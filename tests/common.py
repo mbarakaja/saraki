@@ -3,11 +3,17 @@ from sqlalchemy import ForeignKey, func
 from sqlalchemy.orm import sessionmaker, scoped_session, relationship
 from sqlalchemy import event
 
-from saraki.model import BaseModel
+from saraki.model import BaseModel, Model
 
 
-class Dummy(BaseModel):
-    __tablename__ = 'dummy'
+class DummyBaseModel(BaseModel):
+    __tablename__ = 'dummy_base_model'
+
+    id = Column(Integer, primary_key=True)
+
+
+class DummyModel(Model):
+    __tablename__ = 'dummy_model'
 
     id = Column(Integer, primary_key=True)
 
