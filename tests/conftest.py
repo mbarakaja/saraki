@@ -1,9 +1,12 @@
 import os
 import pytest
 from json import loads as load_json
+
 from saraki import Saraki
 from saraki.model import database, AppUser
+
 from common import Person, Product, Order, OrderLine, TransactionManager
+from assertions import pytest_assertrepr_compare  # noqa: F401
 
 
 needdatabase = pytest.mark.skipif(
