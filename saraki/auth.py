@@ -61,7 +61,7 @@ def _verify_username(username):
     return identity
 
 
-def _get_incoming_request_token():
+def _get_request_jwt():
     """Return ``Authorization`` header token if present, otherwise None.
 
     If the Authorization header is present, raises a JWTError if the token
@@ -87,7 +87,7 @@ def _get_incoming_request_token():
     return parts[1]
 
 
-def _jwt_payload_generator(identity):
+def _generate_jwt_payload(identity):
     required_claim_list = current_app.config['JWT_REQUIRED_CLAIMS']
     iat = datetime.utcnow()
     exp = iat + current_app.config['JWT_EXPIRATION_DELTA']
@@ -108,7 +108,7 @@ def _jwt_payload_generator(identity):
     return payload
 
 
-def _jwt_encode_handler(payload):
+def _encode_jwt(payload):
     secret = current_app.config['SECRET_KEY']
 
     if secret is None:
@@ -127,7 +127,7 @@ def _jwt_encode_handler(payload):
     return jwt.encode(payload, secret, algorithm=algorithm)
 
 
-def _jwt_decode_handler(token):
+def _decode_jwt(token):
 
     if not isinstance(token, (str, bytes)):
         raise ValueError(f'{type(token)} is not a valid JWT string')
@@ -177,13 +177,13 @@ def _is_authorized(payload):
 
 def _validate_request():
 
-    token = _get_incoming_request_token()
+    token = _get_request_jwt()
 
     if token is None:
         raise TokenNotFoundError(
             'The request does not contain an access token')
 
-    payload = _jwt_decode_handler(token)
+    payload = _decode_jwt(token)
 
     if _is_authorized(payload) is False:
         raise AuthorizationError('Invalid access token for this resource')
@@ -208,7 +208,7 @@ def _authenticate_with_token(token):
     token.
     """
 
-    payload = _jwt_decode_handler(token)
+    payload = _decode_jwt(token)
     username = payload['sub']
 
     return _verify_username(username)
@@ -228,7 +228,7 @@ def _authentication_endpoint():
     """Handles an authentication request and returns an access token."""
 
     identity = None
-    token = _get_incoming_request_token()
+    token = _get_request_jwt()
 
     if token:
         identity = _authenticate_with_token(token)
@@ -246,8 +246,8 @@ def _authentication_endpoint():
 
         identity = _authenticate_with_password(**username_password)
 
-    payload = _jwt_payload_generator(identity)
-    access_token = _jwt_encode_handler(payload)
+    payload = _generate_jwt_payload(identity)
+    access_token = _encode_jwt(payload)
 
     return jsonify({'access_token': access_token.decode('utf-8')})
 

@@ -9,8 +9,8 @@ from unittest.mock import patch
 from saraki.exc import NotFoundCredentialError, InvalidPasswordError, \
     InvalidUserError, JWTError, AuthorizationError, TokenNotFoundError
 from saraki.auth import _verify_username, _authenticate_with_password, \
-    _get_incoming_request_token, _jwt_payload_generator, _jwt_encode_handler, \
-    _jwt_decode_handler, _authenticate_with_token, _authentication_endpoint, \
+    _get_request_jwt, _generate_jwt_payload, _encode_jwt, \
+    _decode_jwt, _authenticate_with_token, _authentication_endpoint, \
     _is_authorized, _validate_request, require_auth
 
 
@@ -57,14 +57,14 @@ class Test_verify_username(object):
             _verify_username('unknown')
 
 
-class Test_get_incoming_request_token(object):
+class Test_get_request_jwt(object):
 
     def test_with_more_than_one_space(self, request_ctx):
         headers = {'Authorization': 'Bearer this is a token with spaces'}
 
         with request_ctx('/', headers=headers):
             with pytest.raises(JWTError, match='The token contains spaces'):
-                _get_incoming_request_token()
+                _get_request_jwt()
 
     def test_with_wrong_prefix(self, request_ctx):
         headers = {'Authorization': 'WRONG a.nice.token'}
@@ -72,23 +72,23 @@ class Test_get_incoming_request_token(object):
         with request_ctx('/', headers=headers):
             with pytest.raises(JWTError,
                                match='Unsupported authorization type'):
-                _get_incoming_request_token()
+                _get_request_jwt()
 
     def test_without_space_after_prefix(self, request_ctx):
         headers = {'Authorization': 'Bearera.nice.token'}
 
         with request_ctx('/', headers=headers):
             with pytest.raises(JWTError, match='Missing or malformed token'):
-                _get_incoming_request_token()
+                _get_request_jwt()
 
     def test_with_empty_authorization_http_header(self, request_ctx):
         with request_ctx('/', headers={'Authorization': ''}):
             with pytest.raises(JWTError, match='Missing or malformed token'):
-                _get_incoming_request_token()
+                _get_request_jwt()
 
     def test_without_authorization_http_header(self, request_ctx):
         with request_ctx('/'):
-            token = _get_incoming_request_token()
+            token = _get_request_jwt()
 
         assert token is None
 
@@ -98,17 +98,17 @@ class Test_get_incoming_request_token(object):
         headers = {'Authorization': f'{prefix} {token}'}
 
         with app.test_request_context('/', headers=headers):
-            _token = _get_incoming_request_token()
+            _token = _get_request_jwt()
 
         assert token == _token
 
 
-class Test_jwt_payload_generator(object):
+class Test_generate_jwt_payload(object):
 
     @pytest.mark.usefixtures('ctx')
     def test_default_included_claims(self):
 
-        payload = _jwt_payload_generator(AppUser())
+        payload = _generate_jwt_payload(AppUser())
 
         assert len(payload) is 3
         assert 'iat' in payload
@@ -127,7 +127,7 @@ class Test_jwt_payload_generator(object):
 
         with pytest.raises(RuntimeError, match=error_msg):
             with app.app_context():
-                _jwt_payload_generator(AppUser())
+                _generate_jwt_payload(AppUser())
 
     def test_iss_claim_inclusion_only_when_required(self, app):
         app.config['JWT_REQUIRED_CLAIMS'] = []
@@ -135,7 +135,7 @@ class Test_jwt_payload_generator(object):
         app.config['JWT_ISSUER'] = 'acme.issuer'
 
         with app.app_context():
-            payload = _jwt_payload_generator(AppUser())
+            payload = _generate_jwt_payload(AppUser())
 
         assert 'iss' not in payload
 
@@ -145,7 +145,7 @@ class Test_jwt_payload_generator(object):
         app.config['JWT_ISSUER'] = 'acme.issuer'
 
         with app.app_context():
-            payload = _jwt_payload_generator(AppUser())
+            payload = _generate_jwt_payload(AppUser())
 
         assert payload['iss'] == 'acme.issuer'
 
@@ -155,13 +155,13 @@ class Test_jwt_payload_generator(object):
         app.config['JWT_ISSUER'] = None
 
         with app.app_context():
-            payload = _jwt_payload_generator(AppUser())
+            payload = _generate_jwt_payload(AppUser())
 
         assert payload['iss'] == 'server.name'
 
     @pytest.mark.usefixtures('ctx')
     def test_sub_claim(self):
-        payload = _jwt_payload_generator(AppUser())
+        payload = _generate_jwt_payload(AppUser())
 
         assert payload['sub'] == 'Coy0te'
 
@@ -171,7 +171,7 @@ class Test_jwt_payload_generator(object):
         _datetime = datetime(2018, 5, 13, 17, 52, 44, 524300)
         mock_datetime.utcnow.return_value = _datetime
 
-        payload = _jwt_payload_generator(AppUser())
+        payload = _generate_jwt_payload(AppUser())
 
         assert payload['iat'] == _datetime
         mock_datetime.utcnow.assert_called_once()
@@ -183,19 +183,19 @@ class Test_jwt_payload_generator(object):
         mock_datetime.utcnow.return_value = _datetime
 
         with app.app_context():
-            payload = _jwt_payload_generator(AppUser())
+            payload = _generate_jwt_payload(AppUser())
 
         assert payload['exp'] == _datetime + timedelta(seconds=400)
 
 
-class Test_jwt_encode_handler(object):
+class Test_encode_jwt(object):
 
     @pytest.mark.usefixtures('ctx')
     def test_with_valid_payload(self):
         iat = datetime.utcnow()
         exp = iat + timedelta(seconds=300)
 
-        token = _jwt_encode_handler({
+        token = _encode_jwt({
             'iss': 'acme.local',
             'sub': 'Coy0te',
             'iat': iat,
@@ -220,12 +220,12 @@ class Test_jwt_encode_handler(object):
 
         with app.app_context():
             with pytest.raises(ValueError, match=error):
-                _jwt_encode_handler({'sub': 'Coy0te', 'iat': iat, 'exp': exp})
+                _encode_jwt({'sub': 'Coy0te', 'iat': iat, 'exp': exp})
 
     @pytest.mark.usefixtures('ctx')
     def test_with_various_missing_required_claims(self):
         with pytest.raises(ValueError) as error:
-            _jwt_encode_handler({})
+            _encode_jwt({})
 
         e = str(error)
 
@@ -243,21 +243,21 @@ class Test_jwt_encode_handler(object):
 
         with app.app_context():
             with pytest.raises(RuntimeError, match=error):
-                _jwt_encode_handler({})
+                _encode_jwt({})
 
 
-class Test_jwt_decode_handler(object):
+class Test_decode_jwt(object):
 
     def test_passing_invalid_data_types(self):
 
         with pytest.raises(ValueError, match='is not a valid JWT string'):
-            _jwt_decode_handler(None)
+            _decode_jwt(None)
 
         with pytest.raises(ValueError, match='is not a valid JWT string'):
-            _jwt_decode_handler(1)
+            _decode_jwt(1)
 
         with pytest.raises(ValueError, match='is not a valid JWT string'):
-            _jwt_decode_handler(True)
+            _decode_jwt(True)
 
     def test_token_with_wrong_iss_claim(self, app, _payload):
         app.config['JWT_ISSUER'] = 'acme.local'
@@ -270,7 +270,7 @@ class Test_jwt_decode_handler(object):
 
         with pytest.raises(JWTError, match='Invalid issuer'):
             with app.app_context():
-                _jwt_decode_handler(token)
+                _decode_jwt(token)
 
     def test_token_without_iss_claim_when_is_required(self, app, _payload):
         app.config['JWT_REQUIRED_CLAIMS'] = ['iss']
@@ -282,7 +282,7 @@ class Test_jwt_decode_handler(object):
 
         with pytest.raises(JWTError, match='Token is missing the "iss" claim'):
             with app.app_context():
-                _jwt_decode_handler(token)
+                _decode_jwt(token)
 
     def test_token_without_iat_claim(self, app, _payload):
 
@@ -293,7 +293,7 @@ class Test_jwt_decode_handler(object):
 
         with pytest.raises(JWTError, match='Token is missing the "iat" claim'):
             with app.app_context():
-                _jwt_decode_handler(token)
+                _decode_jwt(token)
 
     def test_token_without_exp_claim(self, app, _payload):
 
@@ -304,7 +304,7 @@ class Test_jwt_decode_handler(object):
 
         with pytest.raises(JWTError, match='Token is missing the "exp" claim'):
             with app.app_context():
-                _jwt_decode_handler(token)
+                _decode_jwt(token)
 
     def test_with_expired_token(self, app):
         app.config['JWT_LEEWAY'] = timedelta(seconds=10)
@@ -317,7 +317,7 @@ class Test_jwt_decode_handler(object):
 
         with pytest.raises(JWTError, match='Token has expired'):
             with app.app_context():
-                _jwt_decode_handler(token)
+                _decode_jwt(token)
 
     def test_with_malformed_token(self, app, _payload):
 
@@ -325,7 +325,7 @@ class Test_jwt_decode_handler(object):
 
         with pytest.raises(JWTError, match='Invalid or malformed token'):
             with app.app_context():
-                _jwt_decode_handler(token)
+                _decode_jwt(token)
 
     def test_with_valid_token_without_iss(self, app, _payload):
         app.config['JWT_LEEWAY'] = timedelta(seconds=10)
@@ -333,7 +333,7 @@ class Test_jwt_decode_handler(object):
         token = jwt.encode(_payload, app.config['SECRET_KEY'])
 
         with app.app_context():
-            decoded_payload = _jwt_decode_handler(token)
+            decoded_payload = _decode_jwt(token)
 
         assert decoded_payload['sub'] == 'Coy0te'
 
@@ -344,7 +344,7 @@ class Test_jwt_decode_handler(object):
         token = jwt.encode(_payload, app.config['SECRET_KEY'])
 
         with app.app_context():
-            decoded_payload = _jwt_decode_handler(token)
+            decoded_payload = _decode_jwt(token)
 
         assert decoded_payload['iss'] == 'acme.local'
         assert decoded_payload['sub'] == 'Coy0te'
@@ -389,24 +389,24 @@ class Test_validate_request(object):
 
     @patch('saraki.auth._verify_username')
     @patch('saraki.auth._is_authorized')
-    @patch('saraki.auth._jwt_decode_handler')
-    @patch('saraki.auth._get_incoming_request_token')
+    @patch('saraki.auth._decode_jwt')
+    @patch('saraki.auth._get_request_jwt')
     def test_request_with_access_token(
         self,
-        mocked_get_incoming_request_token,
+        mocked_get_request_jwt,
         mocked_jwt_decode_handler,
         mocked_is_authorized,
         mocked_verify_username,
         request_ctx
     ):
 
-        mocked_get_incoming_request_token.return_value = 'a.nice.token'
+        mocked_get_request_jwt.return_value = 'a.nice.token'
         mocked_jwt_decode_handler.return_value = {'sub': 'Coy0te'}
 
         with request_ctx('/'):
             _validate_request()
 
-        mocked_get_incoming_request_token.assert_called_once()
+        mocked_get_request_jwt.assert_called_once()
         mocked_jwt_decode_handler.assert_called_once_with('a.nice.token')
         mocked_is_authorized.assert_called_once_with({'sub': 'Coy0te'})
         mocked_verify_username.assert_called_once_with('Coy0te')
