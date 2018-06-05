@@ -3,7 +3,7 @@ import pytest
 from json import loads as load_json
 
 from saraki import Saraki
-from saraki.model import database, AppUser
+from saraki.model import database, AppUser, AppOrg, AppOrgMember
 
 from common import Person, Product, Order, OrderLine, TransactionManager
 from assertions import pytest_assertrepr_compare  # noqa: F401
@@ -87,6 +87,35 @@ def _insert_data(_setup_database):
 @pytest.fixture
 def data(_insert_data, database_conn):
     pass
+
+
+@pytest.fixture
+def data_org(ctx, savepoint):
+
+    lst = [
+        {'username': 'Coy0te', 'orgname': 'acme', 'name': 'Acme Corporation'},
+        {'username': 'R0adRunner', 'orgname': 'rrinc', 'name': 'RR Inc'}
+    ]
+
+    for data in lst:
+        user = AppUser.query.filter_by(username=data['username']).one()
+
+        org = AppOrg(
+            orgname=data['orgname'],
+            name=data['name'],
+            created_by=user
+        )
+        database.session.add(org)
+
+        member = AppOrgMember(
+            user=user,
+            org=org,
+            is_owner=True,
+        )
+
+        database.session.add(member)
+
+    database.session.commit()
 
 
 @pytest.fixture(scope='session')

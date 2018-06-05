@@ -11,7 +11,15 @@ class InvalidUserError(AuthenticationError):
     pass
 
 
+class InvalidOrgError(AuthenticationError):
+    pass
+
+
 class InvalidPasswordError(AuthenticationError):
+    pass
+
+
+class InvalidMemberError(AuthenticationError):
     pass
 
 

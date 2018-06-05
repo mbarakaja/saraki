@@ -2,30 +2,34 @@ import jwt
 import pytest
 from random import randint
 from json import dumps, loads
-from werkzeug.exceptions import BadRequest
+from werkzeug.exceptions import BadRequest, NotFound
 from calendar import timegm
 from datetime import datetime, timedelta
 from unittest.mock import patch
 from saraki.exc import NotFoundCredentialError, InvalidPasswordError, \
-    InvalidUserError, JWTError, AuthorizationError, TokenNotFoundError
-from saraki.auth import _verify_username, _authenticate_with_password, \
-    _get_request_jwt, _generate_jwt_payload, _encode_jwt, \
-    _decode_jwt, _authenticate_with_token, _authentication_endpoint, \
+    InvalidUserError, JWTError, AuthorizationError, TokenNotFoundError, \
+    InvalidMemberError, InvalidOrgError
+from saraki.auth import _verify_username, _verify_orgname, _verify_member, \
+    _authenticate_with_password, _authenticate_with_token, _get_request_jwt, \
+    _generate_jwt_payload, _encode_jwt, _decode_jwt, _authenticate, \
     _is_authorized, _validate_request, require_auth
 
 
 parametrize = pytest.mark.parametrize
 
 
-def getpayload(scp=None, sub=None):
+def getpayload(scp=None, sub='Coy0te', aud=None):
     iat = datetime.utcnow()
     exp = iat + timedelta(seconds=6000)
     payload = {
         'iss': 'acme.local',
-        'sub': sub or 'Coy0te',
+        'sub': sub,
         'iat': iat,
         'exp': exp,
     }
+
+    if aud:
+        payload['aud'] = aud
 
     if scp:
         payload['scp'] = scp
@@ -42,6 +46,10 @@ class AppUser(object):
     username = 'Coy0te'
 
 
+class AppOrg(object):
+    orgname = 'acme'
+
+
 @pytest.mark.usefixtures("data")
 class Test_verify_username(object):
 
@@ -55,6 +63,41 @@ class Test_verify_username(object):
 
         with pytest.raises(InvalidUserError, match=error_msg):
             _verify_username('unknown')
+
+
+@pytest.mark.usefixtures('data', 'data_org')
+class Test_verify_orgname:
+    def test_registered_organization(self, ctx):
+        assert _verify_orgname('acme').orgname == 'acme'
+
+    def test_unregistered_organization(self, ctx):
+
+        error_msg = 'Orgname "unknown" is not registered'
+
+        with pytest.raises(InvalidOrgError, match=error_msg):
+            _verify_orgname('unknown')
+
+
+@pytest.mark.usefixtures('data', 'data_org')
+class Test_verify_member:
+    def test_valid_member(self, ctx):
+
+        user = _verify_username('Coy0te')
+        org = _verify_orgname('acme')
+
+        member = _verify_member(user, org)
+        assert member.user is user
+        assert member.org is org
+
+    def test_invali_member(self, ctx):
+
+        user = _verify_username('Coy0te')
+        org = _verify_orgname('rrinc')
+
+        error_msg = 'Coy0te is not a member of rrinc'
+
+        with pytest.raises(InvalidMemberError, match=error_msg):
+            _verify_member(user, org)
 
 
 class Test_get_request_jwt(object):
@@ -164,6 +207,12 @@ class Test_generate_jwt_payload(object):
         payload = _generate_jwt_payload(AppUser())
 
         assert payload['sub'] == 'Coy0te'
+
+    def test_aud_claim(self, app):
+        with app.app_context():
+            payload = _generate_jwt_payload(AppUser(), AppOrg())
+
+        assert payload['aud'] == 'acme'
 
     @pytest.mark.usefixtures('ctx')
     @patch('saraki.auth.datetime')
@@ -349,10 +398,24 @@ class Test_decode_jwt(object):
         assert decoded_payload['iss'] == 'acme.local'
         assert decoded_payload['sub'] == 'Coy0te'
 
+    def test_with_valid_token_with_aud_claim(self, app):
+        app.config['SERVER_NAME'] = 'acme.local'
+        app.config['JWT_LEEWAY'] = timedelta(seconds=10)
+
+        payload = getpayload(aud='acme')
+        token = jwt.encode(payload, app.config['SECRET_KEY'])
+
+        with app.app_context():
+            decoded_payload = _decode_jwt(token)
+
+        assert decoded_payload['iss'] == 'acme.local'
+        assert decoded_payload['sub'] == 'Coy0te'
+        assert decoded_payload['aud'] == 'acme'
+
 
 class Test_is_authorized(object):
 
-    def test_aud_claim_verification(self, app, _payload):
+    def test_sub_claim_verification(self, app, _payload):
 
         @app.route('/<sub:username>/private-info')
         def private_info(username):
@@ -367,6 +430,27 @@ class Test_is_authorized(object):
 
         with app.test_request_context('/elmer/private-info'):
             assert _is_authorized(_payload) is True
+
+    @parametrize(
+        "payload, expected",
+        [
+            (getpayload(), False),
+            (getpayload(aud='unknown'), False),
+            (getpayload(aud='acme'), True)
+        ],
+        ids=[
+            'Missing aud claim',
+            'aud value mismatch',
+            'aud value matches'
+        ]
+    )
+    def test_aud_claim_verification(self, app, payload, expected):
+        @app.route('/<aud:orgname>/private-info')
+        def private_info(orgname):
+            return 'Private information'
+
+        with app.test_request_context('/acme/private-info'):
+            assert _is_authorized(payload) is expected
 
     def test_route_without_required_claim(self, app, _payload):
 
@@ -441,6 +525,23 @@ class Test_validate_request(object):
             with pytest.raises(AuthorizationError):
                 _validate_request()
 
+    @pytest.mark.usefixtures("data")
+    def test_with_unknown_orgname_in_aud_claim(self, app):
+        path = f'/{randint(100, 10000)}'
+
+        @app.route(path)
+        def index():
+            pass
+
+        payload = getpayload(aud='unknown')
+
+        token = jwt.encode(payload, app.config['SECRET_KEY']).decode()
+        headers = {'Authorization': f'JWT {token}'}
+
+        with app.test_request_context(path, headers=headers):
+            with pytest.raises(AuthorizationError):
+                _validate_request()
+
 
 @pytest.mark.usefixtures('data')
 class Test_authenticate_with_password(object):
@@ -492,13 +593,13 @@ class Test_authenticate_with_token(object):
         assert user.username == 'Coy0te'
 
 
-class Test_authentication_endpoint(object):
+class Test_authenticate(object):
 
     def test_request_without_credentials_or_token(self, request_ctx):
 
         with request_ctx('/'):
             with pytest.raises(NotFoundCredentialError):
-                _authentication_endpoint()
+                _authenticate()
 
     def test_request_without_username(self, request_ctx):
 
@@ -506,7 +607,7 @@ class Test_authentication_endpoint(object):
 
         with request_ctx('/', data=body, content_type='application/json'):
             with pytest.raises(BadRequest):
-                _authentication_endpoint()
+                _authenticate()
 
     def test_request_without_password(self, request_ctx):
 
@@ -514,52 +615,59 @@ class Test_authentication_endpoint(object):
 
         with request_ctx('/', data=body, content_type='application/json'):
             with pytest.raises(BadRequest):
-                _authentication_endpoint()
+                _authenticate()
+
+    @pytest.mark.usefixtures('data')
+    def test_request_passing_unregistered_orgname(self, request_ctx):
+
+        body = dumps({'username': 'Y0seSam', 'password': 'secret'})
+
+        with request_ctx('/', data=body, content_type='application/json'):
+            with pytest.raises(NotFound):
+                _authenticate('unknown')
+
+    @pytest.mark.usefixtures('data', 'data_org')
+    def test_request_passing_registered_orgname(self, request_ctx):
+
+        body = dumps({'username': 'Coy0te', 'password': '12345'})
+
+        with request_ctx('/', data=body, content_type='application/json'):
+            rv = _authenticate('acme')
+
+        assert rv.status_code == 200
+        assert 'access_token' in loads(rv.data)
 
 
 @pytest.mark.usefixtures('data')
-class TestRequestAccessToken(object):
-    """Integration test. Requests to ``/auth`` endpoint"""
+class TestAuthenticationRequest(object):
+    """Integration test of ``/auth`` and ``/auth/<orgname>`` endpoints."""
 
-    def test_request_without_credentials_nor_token(self, app):
+    @parametrize(
+        'req_payload',
+        [
+            (None),
+            ({}),
+            ({'password': '12345'}),
+            ({'username': 'Coy0te'}),
+            ({'username': 'Coy0te', 'password': 'wrongpassword'}),
+            ({'username': 'unknown', 'password': '123456'}),
+        ],
+        ids=[
+            'Empty request payload',
+            'Empty dictionary',
+            'Missing username',
+            'Missing password',
+            'Wrong password',
+            'Unregistered username'
+        ]
+    )
+    def test_invalid_authentication_request(self, client, req_payload):
 
-        rv = app.test_client().post('/auth')
-
-        assert rv.status_code == 400
-
-    def test_request_without_username(self, client):
-
-        body = {'password': '12345'}
-
-        rv = client \
-            .post('/auth', data=dumps(body), content_type='application/json')
-
-        assert rv.status_code == 400, str(rv.data)
-
-    def test_request_without_password(self, client):
-
-        body = {'username': 'Coy0te'}
-
-        rv = client \
-            .post('/auth', data=dumps(body), content_type='application/json')
-
-        assert rv.status_code == 400
-
-    def test_request_with_invalid_username(self, client):
-
-        body = {'username': 'Coyote', 'password': '123456'}
-
-        rv = client \
-            .post('/auth', data=dumps(body), content_type='application/json')
-
-        assert rv.status_code == 400
-
-    def test_request_with_invalid_password(self, client):
-
-        body = {'username': 'Coy0te', 'password': 'wrongpassword'}
-
-        rv = client \
-            .post('/auth', data=dumps(body), content_type='application/json')
+        rv = client.post(
+            '/auth',
+            data=dumps(req_payload),
+            content_type='application/json'
+        )
 
         assert rv.status_code == 400
 
@@ -591,6 +699,83 @@ class TestRequestAccessToken(object):
         payload = jwt.decode(token, verify=False)
 
         assert payload['sub'] == 'Coy0te'
+
+    @pytest.mark.usefixtures('data', 'data_org')
+    @parametrize(
+        'req_payload',
+        [
+            (None),
+            ({}),
+            ({'password': '12345'}),
+            ({'username': 'Coy0te'}),
+            ({'username': 'Coy0te', 'password': 'wrongpassword'}),
+            ({'username': 'unknown', 'password': '123456'}),
+            ({'username': 'R0adRunner', 'password': 'password'}),
+        ],
+        ids=[
+            'Empty request payload',
+            'Empty dictionary',
+            'Missing username',
+            'Missing password',
+            'Wrong password',
+            'Unregistered username',
+            'Not a member'
+        ]
+    )
+    def test_invalid_org_authentication_request(self, client, req_payload):
+
+        rv = client.post(
+            '/auth/acme',
+            data=dumps(req_payload),
+            content_type='application/json'
+        )
+
+        assert rv.status_code == 400
+
+    def test_unregistered_org_authentication_request(self, client):
+
+        orgname = 'unknown'
+        request_payload = {'username': 'Coyote', 'password': '123456'}
+
+        rv = client.post(
+            f'/auth/{orgname}',
+            data=dumps(request_payload),
+            content_type='application/json'
+        )
+
+        assert rv.status_code == 404
+
+    @pytest.mark.usefixtures('data', 'data_org')
+    @parametrize(
+        'payload, expected',
+        [
+            (getpayload(sub='R0adRunner'), 400),
+            (getpayload(sub='Coy0te'), 200),
+        ],
+        ids=[
+            'Not a member',
+            'Owner'
+        ]
+    )
+    def test_org_auth_request_using_valid_tokens(self, app, payload, expected):
+
+        token = jwt.encode(payload, app.config['SECRET_KEY'],
+                           algorithm=app.config['JWT_ALGORITHM']).decode()
+
+        rv = app.test_client().post(
+            '/auth/acme',
+            headers={'Authorization': f'JWT {token}'},
+            content_type='application/json',
+        )
+
+        assert rv.status_code == expected
+
+        if rv.status_code == 200:
+            token = loads(rv.data)['access_token']
+            payload = jwt.decode(token, verify=False)
+
+            assert payload['sub'] == 'Coy0te'
+            assert payload['aud'] == 'acme'
 
 
 class TestRequireAuth(object):
@@ -672,4 +857,35 @@ class TestEndpoint(object):
             headers['Authorization'] = f'JWT {token.decode()}'
 
         rv = client.get('/Coy0te/my-movies', headers=headers)
+        assert rv.status_code == expected
+
+    @pytest.mark.usefixtures('data', 'data_org')
+    @parametrize(
+        "payload, expected",
+        [
+            (None, 404),
+            (getpayload(sub='Coy0te', aud='unknown'), 404),
+            (getpayload(sub='Coy0te', aud='acme'), 200)
+        ]
+    )
+    def test_route_with_aud_variable_rule(self, app, payload, expected):
+
+        @app.route('/<aud:orgname>/stocks')
+        @require_auth()
+        def stocks(orgname):
+            return 'All the stocks'
+
+        headers = {}
+
+        if payload:
+            token = jwt.encode(
+                payload,
+                app.config['SECRET_KEY'],
+                algorithm=app.config['JWT_ALGORITHM']
+            )
+
+            headers['Authorization'] = f'JWT {token.decode()}'
+
+        client = app.test_client()
+        rv = client.get('/acme/stocks', headers=headers)
         assert rv.status_code == expected

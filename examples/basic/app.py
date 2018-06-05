@@ -26,6 +26,12 @@ def user_info(username):
     return f'This information is just for {username}'
 
 
+@app.route('/orgs/<aud:orgname>-info')
+@require_auth()
+def org_info(orgname):
+    return f'This information is just for {orgname}'
+
+
 if __name__ == '__main__':
 
     with app.app_context():

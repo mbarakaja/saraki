@@ -1,6 +1,7 @@
 import json
 import pytest
 from saraki.model import database
+from test_endpoints import login
 
 from app import app
 
@@ -13,10 +14,23 @@ def setup_database(request):
     with app.app_context():
         database.create_all()
 
+    client = app.test_client()
     data = {'username': 'elmer', 'password': 'password', 'email': 'elmer@acme'}
 
-    app.test_client().post(
-        '/signup', data=json.dumps(data), content_type='application/json')
+    client.post(
+        '/signup',
+        data=json.dumps(data),
+        content_type='application/json'
+    )
+
+    token = login(client, username='elmer', password='password')
+
+    client.post(
+        '/users/elmer/orgs',
+        data=json.dumps({'orgname': 'elmerinc', 'name': 'Elmer Inc'}),
+        content_type='application/json',
+        headers={'Authorization': token}
+    )
 
     def teardown():
         with app.app_context():

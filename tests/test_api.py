@@ -5,26 +5,8 @@ from unittest.mock import patch, MagicMock
 from json import loads, dumps
 from assertions import list_is
 from sqlalchemy.orm import joinedload
-from saraki.model import AppUser, AppOrg, AppOrgMember, database
+from saraki.model import AppOrg, AppOrgMember
 from saraki.handlers import ORG_SCHEMA
-
-
-@pytest.fixture
-def background(ctx, savepoint):
-    user = AppUser.query.filter_by(username='Coy0te').one()
-
-    org = AppOrg(orgname='acme', name='Acme Corporation', app_user_id=user.id)
-    database.session.add(org)
-    database.session.flush()
-
-    member = AppOrgMember(
-        app_user_id=user.id,
-        app_org_id=org.id,
-        is_owner=True,
-    )
-
-    database.session.add(member)
-    database.session.commit()
 
 
 def login(username):
@@ -64,7 +46,7 @@ def test_add_org_endpoint_data_validation(MockValidator, client):
     v.validate.assert_called_once_with({'prop': 'value'})
 
 
-@pytest.mark.usefixtures('data', 'background')
+@pytest.mark.usefixtures('data', 'data_org')
 @pytest.mark.parametrize(
     'req_payload, status_code',
     [
@@ -104,7 +86,7 @@ def test_add_org_endpoint(req_payload, status_code, client):
         assert member.is_owner is True
 
 
-@pytest.mark.usefixtures('data', 'background')
+@pytest.mark.usefixtures('data', 'data_org')
 @pytest.mark.parametrize(
     "username, expected_lst",
     [

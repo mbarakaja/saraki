@@ -3,8 +3,9 @@
     ~~~~~~~~~~~~
 """
 from flask import jsonify
-from .exc import NotFoundCredentialError, InvalidUserError, \
-    InvalidPasswordError, JWTError, TokenNotFoundError, AuthorizationError
+from .exc import NotFoundCredentialError, InvalidUserError, InvalidOrgError, \
+    InvalidMemberError, InvalidPasswordError, JWTError, TokenNotFoundError, \
+    AuthorizationError
 
 
 def init_app(app):
@@ -21,6 +22,14 @@ def init_app(app):
     @app.errorhandler(InvalidPasswordError)
     def invalid_password_handler(error):
         return jsonify({'error': 'Invalid username or password'}), 400
+
+    @app.errorhandler(InvalidOrgError)
+    def invalid_org_handler(error):
+        return jsonify({'error': 'Invalid organization'}), 400
+
+    @app.errorhandler(InvalidMemberError)
+    def invalid_member_handler(error):
+        return jsonify({'error': str(error)}), 400
 
     @app.errorhandler(JWTError)
     def jwt_error_handler(error):

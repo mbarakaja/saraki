@@ -12,10 +12,11 @@ from flask import request, current_app, jsonify, abort, _request_ctx_stack
 from werkzeug.routing import BaseConverter
 from werkzeug.local import LocalProxy
 
-from .model import AppUser
+from .model import AppUser, AppOrg, AppOrgMember
 from .utility import generate_schema
-from .exc import NotFoundCredentialError, InvalidUserError, \
-    InvalidPasswordError, JWTError, TokenNotFoundError, AuthorizationError
+from .exc import NotFoundCredentialError, InvalidUserError, InvalidOrgError, \
+    InvalidMemberError, InvalidPasswordError, JWTError, TokenNotFoundError, \
+    AuthorizationError
 
 
 AUTH_SCHEMA = generate_schema(AppUser, include=['username', 'password'])
@@ -50,6 +51,15 @@ class SubClaimConverter(BaseConverter):
         return value
 
 
+class AudClaimConverter(BaseConverter):
+
+    def to_python(self, value):
+        return Claim(value=value, type='aud')
+
+    def to_url(self, value):
+        return value
+
+
 def _verify_username(username):
 
     identity = AppUser.query \
@@ -59,6 +69,27 @@ def _verify_username(username):
         raise InvalidUserError(f'Username "{username}" is not registered')
 
     return identity
+
+
+def _verify_orgname(orgname):
+
+    org = AppOrg.query.filter_by(orgname=orgname).one_or_none()
+
+    if org is None:
+        raise InvalidOrgError(f'Orgname "{orgname}" is not registered')
+
+    return org
+
+
+def _verify_member(user, org):
+    member = AppOrgMember.query \
+        .filter_by(app_user_id=user.id, app_org_id=org.id).one_or_none()
+
+    if member is None:
+        raise InvalidMemberError(
+            f'{user.username} is not a member of {org.orgname}')
+
+    return member
 
 
 def _get_request_jwt():
@@ -87,7 +118,7 @@ def _get_request_jwt():
     return parts[1]
 
 
-def _generate_jwt_payload(identity):
+def _generate_jwt_payload(user, org=None):
     required_claim_list = current_app.config['JWT_REQUIRED_CLAIMS']
     iat = datetime.utcnow()
     exp = iat + current_app.config['JWT_EXPIRATION_DELTA']
@@ -103,7 +134,10 @@ def _generate_jwt_payload(identity):
 
         payload['iss'] = iss
 
-    payload.update({'iat': iat, 'exp': exp, 'sub': identity.username})
+    if org:
+        payload['aud'] = org.orgname
+
+    payload.update({'iat': iat, 'exp': exp, 'sub': user.username})
 
     return payload
 
@@ -136,6 +170,7 @@ def _decode_jwt(token):
 
     options = {'require_' + claim: True for claim in required_claim_list}
     options.update({'verify_' + claim: True for claim in required_claim_list})
+    options['verify_aud'] = False
 
     parameters = {
         'jwt': token,
@@ -188,12 +223,17 @@ def _validate_request():
     if _is_authorized(payload) is False:
         raise AuthorizationError('Invalid access token for this resource')
 
+    org = None
+
     try:
-        identity = _verify_username(payload['sub'])
-    except InvalidUserError as e:
+        user = _verify_username(payload['sub'])
+        org = _verify_orgname(payload['aud']) if 'aud' in payload else None
+
+    except (InvalidUserError, InvalidOrgError) as e:
         raise AuthorizationError('Invalid access token for this resource')
 
-    _request_ctx_stack.top.current_identity = identity
+    _request_ctx_stack.top.current_identity = user
+    _request_ctx_stack.top.current_org = org
 
 
 # ~~~~~~~~~~~~~~~~~~~~~
@@ -224,29 +264,39 @@ def _authenticate_with_password(username, password):
     return user
 
 
-def _authentication_endpoint():
+def _authenticate(orgname=None):
     """Handles an authentication request and returns an access token."""
 
-    identity = None
+    org = None
+
+    if orgname:
+        try:
+            org = _verify_orgname(orgname)
+        except InvalidOrgError:
+            raise abort(404)
+
     token = _get_request_jwt()
 
     if token:
-        identity = _authenticate_with_token(token)
+        user = _authenticate_with_token(token)
     else:
         username_password = request.get_json()
 
         if username_password is None:
-            raise NotFoundCredentialError('Missing token and '
-                                          'username/password')
+            raise NotFoundCredentialError(
+                'Missing token and username/password')
 
         v = Validator(AUTH_SCHEMA)
 
         if v.validate(username_password) is False:
             abort(400, v.errors)
 
-        identity = _authenticate_with_password(**username_password)
+        user = _authenticate_with_password(**username_password)
 
-    payload = _generate_jwt_payload(identity)
+    if org:
+        _verify_member(user, org)
+
+    payload = _generate_jwt_payload(user, org)
     access_token = _encode_jwt(payload)
 
     return jsonify({'access_token': access_token.decode('utf-8')})
@@ -278,7 +328,19 @@ class Auth(object):
         self.app = app
 
         app.url_map.converters['sub'] = SubClaimConverter
+        app.url_map.converters['aud'] = AudClaimConverter
 
-        app.add_url_rule(rule='/auth',
-                         view_func=_authentication_endpoint,
-                         methods=['POST'])
+        methods = ['POST']
+
+        app.add_url_rule(
+            rule='/auth',
+            view_func=_authenticate,
+            methods=methods,
+            defaults={'orgname': None},
+        )
+
+        app.add_url_rule(
+            rule='/auth/<orgname>',
+            view_func=_authenticate,
+            methods=methods,
+        )
