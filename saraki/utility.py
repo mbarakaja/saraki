@@ -265,3 +265,21 @@ class Validator(_Validator):
             if model and (not self.update or model is not self.model):
                 self._error(
                     field, f'Must be unique, but \'{value}\' already exist')
+
+
+def get_key_path(key, _map):
+
+    for map_key, value in _map.items():
+        path = []
+
+        if map_key == key:
+            return [map_key]
+
+        if type(value) == dict:
+            _path = get_key_path(key, value)
+            path = ([map_key] + path + _path) if _path else []
+
+        if len(path) > 0:
+            return path
+
+    return None

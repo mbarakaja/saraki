@@ -5,7 +5,7 @@ from werkzeug.exceptions import UnsupportedMediaType, BadRequest
 from flask import make_response
 from common import Product, Order, DummyBaseModel, DummyModel
 from saraki.utility import import_into_sqla_object, export_from_sqla_object, \
-    json, Validator
+    json, Validator, get_key_path
 
 
 def test_import_into_sqla_object():
@@ -345,3 +345,37 @@ class TestValidator:
 
         error_message = "Must be unique, but 'Binocular' already exist"
         assert error_message in v.errors['name']
+
+
+@pytest.fixture(scope='module')
+def _object():
+    return {
+        '5': None,
+        '1': {
+            '2': None,
+            '3': {'7': None, '4': {'0': None}},
+        },
+        '10': {
+            '11': None,
+            '12': {
+                '13': {'14': None}, '15': None
+            },
+        },
+        '6': None,
+    }
+
+
+@pytest.mark.parametrize(
+    'key, result',
+    [
+        ('9', None),
+        ('5', ['5']),
+        ('6', ['6']),
+        ('3', ['1', '3']),
+        ('4', ['1', '3', '4']),
+        ('14', ['10', '12', '13', '14']),
+        ('15', ['10', '12', '15']),
+    ]
+)
+def test_get_key_path(key, _object, result):
+    assert get_key_path(key, _object) == result

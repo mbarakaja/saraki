@@ -3,16 +3,17 @@ import pytest
 from random import randint
 from json import dumps, loads
 from werkzeug.exceptions import BadRequest, NotFound
+from flask import Flask
 from calendar import timegm
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from unittest.mock import patch, call, Mock
 from saraki.exc import NotFoundCredentialError, InvalidPasswordError, \
     InvalidUserError, JWTError, AuthorizationError, TokenNotFoundError, \
-    InvalidMemberError, InvalidOrgError
+    InvalidMemberError, InvalidOrgError, ProgrammingError
 from saraki.auth import _verify_username, _verify_orgname, _verify_member, \
     _authenticate_with_password, _authenticate_with_token, _get_request_jwt, \
     _generate_jwt_payload, _encode_jwt, _decode_jwt, _authenticate, \
-    _is_authorized, _validate_request, require_auth
+    _is_authorized, _validate_request, require_auth, Auth
 
 
 parametrize = pytest.mark.parametrize
@@ -461,6 +462,116 @@ class Test_is_authorized(object):
         with app.test_request_context('/private-info'):
             assert _is_authorized(_payload) is True
 
+    @parametrize(
+        'scope, required, expected',
+        [
+            (None, (None, None), True),
+            (None, ('movie', 'delete'), False),
+            ({'film': ['read']}, (None, None), True),
+            ({'film': ['read']}, ('movie', 'delete'), False),
+            ({'film': ['manage']}, ('movie', 'delete'), False),
+            ({'movie': ['read']}, ('movie', 'delete'), False),
+            ({'movie': ['delete']}, ('movie', 'delete'), True),
+            ({'movie': ['manage']}, ('movie', 'delete'), True),
+        ],
+        ids=[
+            'without scope | resource not required',
+            'without scope | resource is required',
+            'with scope | resource not required',
+            'missing required resource',
+            'manage action but missing required resource',
+            'resource match but action does not',
+            'resource and action match',
+            'resource match and action is manage',
+        ]
+    )
+    def test_scope_validation(self, app, scope, required, expected):
+
+        @app.route('/')
+        def private_info():
+            return ''
+
+        payload = getpayload(scp=scope)
+
+        resource = required[0]
+        action = required[1]
+
+        with app.test_request_context('/'):
+            assert _is_authorized(payload, resource, action) is expected
+
+    @parametrize(
+        'scope, required, expected',
+        [
+            (None, ('catalog', 'read'), False),
+            ({'catalog': ['read']}, ('catalog', 'read'), True),
+            ({'product': ['read']}, ('catalog', 'read'), True),
+            ({'catalog': ['read']}, ('catalog', 'write'), False),
+            ({'product': ['read']}, ('catalog', 'write'), False),
+            ({'product': ['write']}, ('product', 'write'), True),
+        ],
+        ids=[
+            'without scope | resource is required',
+            'resource and action match',
+            'resource is parent',
+            'resource match but action does not',
+            'resource is parent but action does not match',
+            'scope and required resource are parents',
+        ]
+    )
+    def test_scope_validation_with_nested_resource(
+        self, app, scope, required, expected
+    ):
+
+        app.auth._resources = {
+            'puchase': None,
+            'product': {
+                'catalog': None
+            }
+        }
+
+        @app.route('/')
+        def private_info():
+            return ''
+
+        payload = getpayload(scp=scope)
+
+        resource = required[0]
+        action = required[1]
+
+        with app.test_request_context('/'):
+            assert _is_authorized(payload, resource, action) is expected
+
+    @parametrize(
+        'action, method, expect',
+        [
+            ('custom', 'CUSTOM', False),
+            ('manage', 'CUSTOM', False),
+            ('follow', 'GET', False),
+            ('read', 'DELETE', False),
+            ('write', 'GET', False),
+            ('read', 'GET', True),
+            ('write', 'POST', True),
+            ('write', 'PUT', True),
+            ('write', 'PATCH', True),
+            ('delete', 'DELETE', True),
+            ('manage', 'GET', True),
+            ('manage', 'POST', True),
+            ('manage', 'PUT', True),
+            ('manage', 'PATCH', True),
+            ('manage', 'DELETE', True),
+        ]
+    )
+    def test_http_method_to_action_mapping(self, app, action, method, expect):
+
+        @app.route('/', methods=[method])
+        def private_info():
+            return ''
+
+        payload = getpayload(scp={'cartoon': [action]})
+
+        with app.test_request_context('/', method=method):
+            assert _is_authorized(payload, 'cartoon') is expect
+
 
 class Test_validate_request(object):
 
@@ -488,11 +599,12 @@ class Test_validate_request(object):
         mocked_jwt_decode_handler.return_value = {'sub': 'Coy0te'}
 
         with request_ctx('/'):
-            _validate_request()
+            _validate_request('stock', 'read')
 
         mocked_get_request_jwt.assert_called_once()
         mocked_jwt_decode_handler.assert_called_once_with('a.nice.token')
-        mocked_is_authorized.assert_called_once_with({'sub': 'Coy0te'})
+        mocked_is_authorized.assert_called_once_with(
+            {'sub': 'Coy0te'}, 'stock', 'read')
         mocked_verify_username.assert_called_once_with('Coy0te')
 
     @patch('saraki.auth._is_authorized')
@@ -780,19 +892,181 @@ class TestAuthenticationRequest(object):
 
 class TestRequireAuth(object):
 
-    @patch('saraki.auth._validate_request')
-    def test_call_to_validate_request(self, mocked_validate_request):
+    def test_pass_action_without_resource(self):
+        error_msg = 'You passed an action \'read\' without a resource'
 
-        @require_auth()
+        with pytest.raises(ProgrammingError, match=error_msg):
+            require_auth(action='read')
+
+    @parametrize(
+        'resource, action, parent_resource',
+        [
+            ('stock', None, None),
+            ('stock', 'read', None),
+            ('stock', 'read', 'market'),
+        ]
+    )
+    def test_auth_metadata(self, resource, action, parent_resource):
+
+        @require_auth(resource, action, parent_resource)
+        def endpoint():
+            return 'private content'
+
+        assert hasattr(endpoint, '_auth_metadata')
+        assert endpoint._auth_metadata == {
+            'resource': resource,
+            'action': action,
+            'parent_resource': parent_resource,
+        }
+
+    @patch('saraki.auth._validate_request')
+    @parametrize(
+        'resource, action',
+        [
+            (None, None),
+            ('stock', None),
+            ('stock', 'read'),
+        ]
+    )
+    def test_call_to_validate_request_internal_function(
+        self,
+        mocked_validate_request,
+        resource,
+        action,
+    ):
+
+        @require_auth(resource, action)
         def private():
             return 'private content'
 
         private()
 
-        mocked_validate_request.assert_called_once()
+        mocked_validate_request.assert_called_once_with(resource, action)
 
-    def test_required_aud_claim(self):
-        pass
+
+class TestAuth(object):
+
+    def test_instantiation(self):
+        auth = Auth()
+        assert not hasattr(auth, 'app')
+
+        with patch.object(Auth, 'init_app') as mocked_init_app:
+            app = Flask(__name__)
+            auth = Auth(app)
+            mocked_init_app.assert_called_once_with(app)
+
+    def test_init_app(self):
+        app = Flask(__name__)
+        auth = Auth()
+        auth.init_app(app)
+
+        adapter = app.url_map.bind('')
+
+        assert adapter.match('/auth', method='POST')
+        assert auth.app is app
+
+    def test_add_resource(self):
+        auth = Auth()
+        auth._add_resource('lonely')
+
+        assert 'lonely' in auth.resources
+
+        auth = Auth()
+        auth._add_resource('purchase', 'commerce')
+
+        assert 'commerce' in auth.resources
+        assert 'purchase' in auth.resources['commerce']
+
+        auth = Auth()
+        auth._add_resource('product')
+        auth._add_resource('catalog')
+        auth._add_resource('product')
+
+        assert len(auth.resources) == 2
+        assert 'catalog' in auth.resources
+        assert 'product' in auth.resources
+
+        auth = Auth()
+        auth._add_resource('sale', 'commerce')
+        auth._add_resource('purchase', 'commerce')
+
+        assert auth.resources == {
+            'commerce': {
+                'sale': None,
+                'purchase': None
+            }
+        }
+
+    @parametrize(
+        'value',
+        (None, 1, True, [], (),)
+    )
+    def test_add_resouce_with_invalid_value(self, value):
+        auth = Auth()
+
+        with pytest.raises(TypeError):
+            auth._add_resource(value)
+
+    @parametrize(
+        "actions, length",
+        [
+            (('read', 'update', 'read', 'update', 'create'), 4),
+            (('read', 'create', 'update', 'delete'), 5),
+        ]
+    )
+    def test_add_action(self, actions, length):
+        auth = Auth()
+
+        for action_name in actions:
+            auth._add_action(action_name)
+
+        assert len(auth.actions) == length
+
+    @parametrize(
+        'value',
+        (None, 1, True, [], (),)
+    )
+    def test_add_action_with_invalid_value(self, value):
+        auth = Auth()
+
+        with pytest.raises(TypeError):
+            auth._add_action(value)
+
+    def test_collect_metadata(self):
+        app = Flask(__name__)
+        auth = Auth(app)
+
+        @app.route('/sales')
+        @require_auth('sale', 'read', 'biz')
+        def list_sale():
+            pass
+
+        @app.route('/sales', methods=['POST'])
+        @require_auth('sale', 'create', 'biz')
+        def add_sale():
+            pass
+
+        @app.route('/sales/1')
+        @require_auth()
+        def get_one_sale():
+            pass
+
+        auth._add_resource = Mock()
+        auth._add_action = Mock()
+
+        auth._collect_metadata()
+
+        assert auth._add_resource.call_count == 2
+        auth._add_resource.assert_has_calls([
+            call('sale', 'biz'),
+            call('sale', 'biz'),
+        ])
+
+        assert auth._add_resource.call_count == 2
+        auth._add_action.assert_has_calls([
+            call('read'),
+            call('create'),
+        ])
 
 
 @pytest.mark.usefixtures('data')
@@ -889,3 +1163,101 @@ class TestEndpoint(object):
         client = app.test_client()
         rv = client.get('/acme/stocks', headers=headers)
         assert rv.status_code == expected
+
+    @parametrize(
+        "payload, expected",
+        [
+            (None, 404),
+            (getpayload(), 200),
+            (getpayload({'film': ['manage']}), 200),
+            (getpayload({'movie': ['write']}), 200),
+        ],
+        ids=[
+            'without token',
+            'token without scope',
+            'token with manage action',
+            'token with different action',
+        ],
+    )
+    def test_without_required_resource(self, app, payload, expected):
+
+        client = app.test_client()
+
+        @app.route('/movies')
+        @require_auth()
+        def movies():
+            return 'movies'
+
+        headers = {}
+
+        if payload:
+            token = jwt.encode(payload, app.config['SECRET_KEY'],
+                               algorithm=app.config['JWT_ALGORITHM'])
+            headers['Authorization'] = f'JWT {token.decode()}'
+
+        assert client.get('/movies', headers=headers).status_code == expected
+
+    @parametrize(
+        "payload, expected",
+        [
+            (None, 404),
+            (getpayload(), 404),
+            (getpayload({'film': ['manage']}), 404),
+            (getpayload({'movie': ['read']}), 404),
+            (getpayload({'movie': ['write']}), 200),
+        ],
+        ids=[
+            'without token',
+            'token: without scope',
+            'token: missing required resource',
+            'token: action mismatch',
+            'token: with required resource/action',
+        ],
+    )
+    def test_with_required_resource(self, app, payload, expected):
+
+        @app.route('/movies', methods=['POST'])
+        @require_auth('movie')
+        def movies():
+            return 'movies'
+
+        headers = {}
+
+        if payload:
+            token = jwt.encode(
+                payload,
+                app.config['SECRET_KEY'],
+                algorithm=app.config['JWT_ALGORITHM']
+            )
+            headers['Authorization'] = f'JWT {token.decode()}'
+
+        client = app.test_client()
+        assert client.post('/movies', headers=headers).status_code == expected
+
+    @parametrize(
+        "payload, expected",
+        [
+            (None, 404),
+            (getpayload(), 404),
+            (getpayload({'film': ['manage']}), 404),
+            (getpayload({'film': ['write']}), 404),
+            (getpayload({'movie': ['change']}), 200),
+        ],
+    )
+    def test_with_explicit_required_action(self, app, payload, expected):
+
+        client = app.test_client()
+
+        @app.route('/movies', methods=['PUT'])
+        @require_auth('movie', 'change')
+        def movies():
+            return 'movies'
+
+        headers = {}
+
+        if payload:
+            token = jwt.encode(payload, app.config['SECRET_KEY'],
+                               algorithm=app.config['JWT_ALGORITHM'])
+            headers['Authorization'] = f'JWT {token.decode()}'
+
+        assert client.put('/movies', headers=headers).status_code == expected

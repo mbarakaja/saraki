@@ -13,13 +13,22 @@ from werkzeug.routing import BaseConverter
 from werkzeug.local import LocalProxy
 
 from .model import AppUser, AppOrg, AppOrgMember
-from .utility import generate_schema
+from .utility import generate_schema, get_key_path
 from .exc import NotFoundCredentialError, InvalidUserError, InvalidOrgError, \
     InvalidMemberError, InvalidPasswordError, JWTError, TokenNotFoundError, \
-    AuthorizationError
+    AuthorizationError, ProgrammingError
 
 
 AUTH_SCHEMA = generate_schema(AppUser, include=['username', 'password'])
+
+
+HTTP_VERBS_CRUD = {
+    'get': 'read',
+    'post': 'write',
+    'patch': 'write',
+    'put': 'write',
+    'delete': 'delete'
+}
 
 
 current_identity = LocalProxy(
@@ -197,7 +206,19 @@ def _decode_jwt(token):
     return payload
 
 
-def _is_authorized(payload):
+def _get_parent_resource(required_resource, scopes):
+
+    resource_map = current_app.auth.resources
+    path = get_key_path(required_resource, resource_map) or []
+
+    for resource in scopes:
+        if resource in path:
+            return resource
+
+    return None
+
+
+def _is_authorized(payload, resource=None, action=None):
 
     criteria = []
 
@@ -207,10 +228,36 @@ def _is_authorized(payload):
     if not all(criteria):
         return False
 
-    return True
+    if not resource:
+        return True
+
+    scopes = payload.get('scp')
+
+    if not scopes:
+        return False
+
+    if action is None:
+        method = request.method.lower()
+
+        if method not in HTTP_VERBS_CRUD:
+            return False
+
+        action = HTTP_VERBS_CRUD[method]
+
+    scope_resource = scopes.get(resource)
+
+    if not scope_resource:
+        parent_resource = _get_parent_resource(resource, scopes)
+
+        if not parent_resource:
+            return False
+
+        scope_resource = scopes[parent_resource]
+
+    return action in scope_resource or 'manage' in scope_resource
 
 
-def _validate_request():
+def _validate_request(resource=None, action=None):
 
     token = _get_request_jwt()
 
@@ -220,7 +267,7 @@ def _validate_request():
 
     payload = _decode_jwt(token)
 
-    if _is_authorized(payload) is False:
+    if _is_authorized(payload, resource, action) is False:
         raise AuthorizationError('Invalid access token for this resource')
 
     org = None
@@ -302,14 +349,24 @@ def _authenticate(orgname=None):
     return jsonify({'access_token': access_token.decode('utf-8')})
 
 
-def require_auth():
+def require_auth(resource=None, action=None, parent_resource=None):
+
+    if action and not resource:
+        raise ProgrammingError(
+            f'You passed an action \'{action}\' without a resource')
 
     def decorator(func):
+
+        func._auth_metadata = dict(
+            resource=resource,
+            action=action,
+            parent_resource=parent_resource
+        )
 
         @wraps(func)
         def wrapper(*arg, **karg):
 
-            _validate_request()
+            _validate_request(resource, action)
 
             return func(*arg, **karg)
         return wrapper
@@ -319,6 +376,9 @@ def require_auth():
 class Auth(object):
 
     def __init__(self, app=None):
+
+        self._resources = {}
+        self._actions = ['manage']
 
         if app:
             self.init_app(app)
@@ -344,3 +404,63 @@ class Auth(object):
             view_func=_authenticate,
             methods=methods,
         )
+
+    @property
+    def resources(self):
+        return self._resources
+
+    @property
+    def actions(self):
+        return self._actions
+
+    def _add_resource(self, resource, parent=None):
+
+        if type(resource) != str:
+            raise TypeError(
+                f'resource argument must be an string, got {type(resource)}')
+
+        resources = self.resources
+        path = get_key_path(resource, resources)
+
+        if not path:
+
+            parent_path = get_key_path(parent, resources) if parent else []
+
+            if parent_path is None:
+                self._resources[parent] = None
+                parent_path = [parent]
+
+            parent_resource = self._resources
+
+            for branch in parent_path:
+                if parent_resource[branch] is None:
+                    parent_resource[branch] = {}
+                parent_resource = parent_resource[branch]
+
+            parent_resource[resource] = None
+
+    def _add_action(self, action):
+
+        if type(action) != str:
+            raise TypeError(
+                f'action argument must be an string, got {type(action)}')
+        if action is not None and action not in self.actions:
+            self._actions.append(action)
+
+    def _collect_metadata(self):
+
+        for endpoint, view_func in self.app.view_functions.items():
+
+            if hasattr(view_func, '_auth_metadata'):
+
+                _auth = view_func._auth_metadata
+
+                resource = _auth['resource']
+                parent_resource = _auth['parent_resource']
+                action = _auth['action']
+
+                if resource:
+                    self._add_resource(resource, parent_resource)
+
+                if action:
+                    self._add_action(action)
