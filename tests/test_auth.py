@@ -1,6 +1,7 @@
 import jwt
 import pytest
 from random import randint
+from typing import NamedTuple
 from json import dumps, loads
 from werkzeug.exceptions import BadRequest, NotFound
 from flask import Flask
@@ -43,12 +44,20 @@ def _payload():
     return getpayload()
 
 
-class AppUser(object):
-    username = 'Coy0te'
+class AppUserMock(NamedTuple):
+    username: str
 
 
-class AppOrg(object):
-    orgname = 'acme'
+class AppOrgMock(NamedTuple):
+    orgname: str
+
+
+def _get_user(username):
+    return AppUserMock(username=username)
+
+
+def _get_org(orgname):
+    return AppOrgMock(orgname=orgname)
 
 
 @pytest.mark.usefixtures("data")
@@ -151,8 +160,9 @@ class Test_generate_jwt_payload(object):
 
     @pytest.mark.usefixtures('ctx')
     def test_default_included_claims(self):
+        user = _get_user(username='somebody')
 
-        payload = _generate_jwt_payload(AppUser())
+        payload = _generate_jwt_payload(user)
 
         assert len(payload) is 3
         assert 'iat' in payload
@@ -169,17 +179,21 @@ class Test_generate_jwt_payload(object):
             'required, but neither JWT_ISSUER nor SERVER_NAME are provided'
         )
 
-        with pytest.raises(RuntimeError, match=error_msg):
-            with app.app_context():
-                _generate_jwt_payload(AppUser())
+        user = _get_user(username='somebody')
+
+        with app.app_context():
+            with pytest.raises(RuntimeError, match=error_msg):
+                _generate_jwt_payload(user)
 
     def test_iss_claim_inclusion_only_when_required(self, app):
         app.config['JWT_REQUIRED_CLAIMS'] = []
         app.config['SERVER_NAME'] = 'server.name'
         app.config['JWT_ISSUER'] = 'acme.issuer'
 
+        user = _get_user(username='somebody')
+
         with app.app_context():
-            payload = _generate_jwt_payload(AppUser())
+            payload = _generate_jwt_payload(user)
 
         assert 'iss' not in payload
 
@@ -188,8 +202,10 @@ class Test_generate_jwt_payload(object):
         app.config['SERVER_NAME'] = 'server.name'
         app.config['JWT_ISSUER'] = 'acme.issuer'
 
+        user = _get_user(username='somebody')
+
         with app.app_context():
-            payload = _generate_jwt_payload(AppUser())
+            payload = _generate_jwt_payload(user)
 
         assert payload['iss'] == 'acme.issuer'
 
@@ -198,20 +214,26 @@ class Test_generate_jwt_payload(object):
         app.config['SERVER_NAME'] = 'server.name'
         app.config['JWT_ISSUER'] = None
 
+        user = _get_user(username='somebody')
+
         with app.app_context():
-            payload = _generate_jwt_payload(AppUser())
+            payload = _generate_jwt_payload(user)
 
         assert payload['iss'] == 'server.name'
 
     @pytest.mark.usefixtures('ctx')
     def test_sub_claim(self):
-        payload = _generate_jwt_payload(AppUser())
+        user = _get_user(username='Coy0te')
+        payload = _generate_jwt_payload(user)
 
         assert payload['sub'] == 'Coy0te'
 
     def test_aud_claim(self, app):
+        user = _get_user(username='somebody')
+        org = _get_org(orgname='acme')
+
         with app.app_context():
-            payload = _generate_jwt_payload(AppUser(), AppOrg())
+            payload = _generate_jwt_payload(user, org)
 
         assert payload['aud'] == 'acme'
 
@@ -221,7 +243,8 @@ class Test_generate_jwt_payload(object):
         _datetime = datetime(2018, 5, 13, 17, 52, 44, 524300)
         mock_datetime.utcnow.return_value = _datetime
 
-        payload = _generate_jwt_payload(AppUser())
+        user = _get_user(username='somebody')
+        payload = _generate_jwt_payload(user)
 
         assert payload['iat'] == _datetime
         mock_datetime.utcnow.assert_called_once()
@@ -232,8 +255,10 @@ class Test_generate_jwt_payload(object):
         app.config['JWT_EXPIRATION_DELTA'] = timedelta(seconds=400)
         mock_datetime.utcnow.return_value = _datetime
 
+        user = _get_user(username='somebody')
+
         with app.app_context():
-            payload = _generate_jwt_payload(AppUser())
+            payload = _generate_jwt_payload(user)
 
         assert payload['exp'] == _datetime + timedelta(seconds=400)
 
@@ -318,8 +343,8 @@ class Test_decode_jwt(object):
 
         token = jwt.encode(_payload, app.config['SECRET_KEY'])
 
-        with pytest.raises(JWTError, match='Invalid issuer'):
-            with app.app_context():
+        with app.app_context():
+            with pytest.raises(JWTError, match='Invalid issuer'):
                 _decode_jwt(token)
 
     def test_token_without_iss_claim_when_is_required(self, app, _payload):
@@ -329,9 +354,10 @@ class Test_decode_jwt(object):
         del _payload['iss']
 
         token = jwt.encode(_payload, app.config['SECRET_KEY'])
+        error_msg = 'Token is missing the "iss" claim'
 
-        with pytest.raises(JWTError, match='Token is missing the "iss" claim'):
-            with app.app_context():
+        with app.app_context():
+            with pytest.raises(JWTError, match=error_msg):
                 _decode_jwt(token)
 
     def test_token_without_iat_claim(self, app, _payload):
@@ -340,9 +366,10 @@ class Test_decode_jwt(object):
         del _payload['iat']
 
         token = jwt.encode(_payload, app.config['SECRET_KEY'])
+        error_msg = 'Token is missing the "iat" claim'
 
-        with pytest.raises(JWTError, match='Token is missing the "iat" claim'):
-            with app.app_context():
+        with app.app_context():
+            with pytest.raises(JWTError, match=error_msg):
                 _decode_jwt(token)
 
     def test_token_without_exp_claim(self, app, _payload):
@@ -351,9 +378,10 @@ class Test_decode_jwt(object):
         del _payload['exp']
 
         token = jwt.encode(_payload, app.config['SECRET_KEY'])
+        error_msg = 'Token is missing the "exp" claim'
 
-        with pytest.raises(JWTError, match='Token is missing the "exp" claim'):
-            with app.app_context():
+        with app.app_context():
+            with pytest.raises(JWTError, match=error_msg):
                 _decode_jwt(token)
 
     def test_with_expired_token(self, app):
@@ -365,16 +393,16 @@ class Test_decode_jwt(object):
 
         token = jwt.encode(payload, app.config['SECRET_KEY'])
 
-        with pytest.raises(JWTError, match='Token has expired'):
-            with app.app_context():
+        with app.app_context():
+            with pytest.raises(JWTError, match='Token has expired'):
                 _decode_jwt(token)
 
     def test_with_malformed_token(self, app, _payload):
 
         token = jwt.encode(_payload, app.config['SECRET_KEY']) + b"'"
 
-        with pytest.raises(JWTError, match='Invalid or malformed token'):
-            with app.app_context():
+        with app.app_context():
+            with pytest.raises(JWTError, match='Invalid or malformed token'):
                 _decode_jwt(token)
 
     def test_with_valid_token_without_iss(self, app, _payload):
