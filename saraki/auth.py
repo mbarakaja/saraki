@@ -146,6 +146,14 @@ def _generate_jwt_payload(user, org=None):
     if org:
         payload['aud'] = org.orgname
 
+        member = AppOrgMember.query.filter_by(
+            app_user_id=user.id,
+            app_org_id=org.id,
+        ).one()
+
+        if member.is_owner:
+            payload.update({'scp': {'org': ['manage']}})
+
     payload.update({'iat': iat, 'exp': exp, 'sub': user.username})
 
     return payload
