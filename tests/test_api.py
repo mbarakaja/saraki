@@ -32,15 +32,17 @@ def test_add_org_endpoint_data_validation(MockValidator, client):
     v = MagicMock()
     MockValidator.return_value = v
     v.validate.return_value = False
-
+    v.errors = {}
     access_token = login('Coy0te')
 
-    client.post(
+    rv = client.post(
         '/users/Coy0te/orgs',
         data=dumps({'prop': 'value'}),
         content_type='application/json',
         headers={'Authorization': access_token},
     )
+
+    assert rv.status_code == 400
 
     MockValidator.assert_called_once_with(ORG_SCHEMA, AppOrg)
     v.validate.assert_called_once_with({'prop': 'value'})

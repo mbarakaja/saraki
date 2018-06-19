@@ -273,13 +273,12 @@ def _validate_request(resource=None, action=None):
     token = _get_request_jwt()
 
     if token is None:
-        raise TokenNotFoundError(
-            'The request does not contain an access token')
+        raise TokenNotFoundError
 
     payload = _decode_jwt(token)
 
     if _is_authorized(payload, resource, action) is False:
-        raise AuthorizationError('Invalid access token for this resource')
+        raise AuthorizationError
 
     org = None
 
@@ -288,7 +287,7 @@ def _validate_request(resource=None, action=None):
         org = _verify_orgname(payload['aud']) if 'aud' in payload else None
 
     except (InvalidUserError, InvalidOrgError) as e:
-        raise AuthorizationError('Invalid access token for this resource')
+        raise AuthorizationError
 
     _request_ctx_stack.top.current_user = user
     _request_ctx_stack.top.current_org = org

@@ -617,10 +617,8 @@ class Test_is_authorized(object):
 class Test_validate_request(object):
 
     def test_request_without_access_token(self, request_ctx):
-        excmsg = 'he request does not contain an access token'
-
         with request_ctx('/'):
-            with pytest.raises(TokenNotFoundError, match=excmsg):
+            with pytest.raises(TokenNotFoundError):
                 _validate_request()
 
     @patch('saraki.auth._verify_username')
@@ -1152,8 +1150,8 @@ class TestEndpoint(object):
     @parametrize(
         "payload, expected",
         [
-            (None, 404),
-            (getpayload(sub='unknown'), 404),
+            (None, 401),
+            (getpayload(sub='unknown'), 401),
             (getpayload(sub='Coy0te'), 200)
         ]
     )
@@ -1181,9 +1179,9 @@ class TestEndpoint(object):
     @parametrize(
         "payload, expected",
         [
-            (None, 404),
-            (getpayload(sub='unknown'), 404),
-            (getpayload(sub='R0adRunner'), 404),
+            (None, 401),
+            (getpayload(sub='unknown'), 401),
+            (getpayload(sub='R0adRunner'), 401),
             (getpayload(sub='Coy0te'), 200)
         ]
     )
@@ -1214,8 +1212,8 @@ class TestEndpoint(object):
     @parametrize(
         "payload, expected",
         [
-            (None, 404),
-            (getpayload(sub='Coy0te', aud='unknown'), 404),
+            (None, 401),
+            (getpayload(sub='Coy0te', aud='unknown'), 401),
             (getpayload(sub='Coy0te', aud='acme'), 200)
         ]
     )
@@ -1244,7 +1242,7 @@ class TestEndpoint(object):
     @parametrize(
         "payload, expected",
         [
-            (None, 404),
+            (None, 401),
             (getpayload(), 200),
             (getpayload({'film': ['manage']}), 200),
             (getpayload({'movie': ['write']}), 200),
@@ -1277,10 +1275,10 @@ class TestEndpoint(object):
     @parametrize(
         "payload, expected",
         [
-            (None, 404),
-            (getpayload(), 404),
-            (getpayload({'film': ['manage']}), 404),
-            (getpayload({'movie': ['read']}), 404),
+            (None, 401),
+            (getpayload(), 401),
+            (getpayload({'film': ['manage']}), 401),
+            (getpayload({'movie': ['read']}), 401),
             (getpayload({'movie': ['write']}), 200),
         ],
         ids=[
@@ -1314,10 +1312,10 @@ class TestEndpoint(object):
     @parametrize(
         "payload, expected",
         [
-            (None, 404),
-            (getpayload(), 404),
-            (getpayload({'film': ['manage']}), 404),
-            (getpayload({'film': ['write']}), 404),
+            (None, 401),
+            (getpayload(), 401),
+            (getpayload({'film': ['manage']}), 401),
+            (getpayload({'film': ['write']}), 401),
             (getpayload({'movie': ['change']}), 200),
         ],
     )
