@@ -14,7 +14,8 @@ from saraki.exc import NotFoundCredentialError, InvalidPasswordError, \
 from saraki.auth import _verify_username, _verify_orgname, _verify_member, \
     _authenticate_with_password, _authenticate_with_token, _get_request_jwt, \
     _generate_jwt_payload, _encode_jwt, _decode_jwt, _authenticate, \
-    _is_authorized, _validate_request, require_auth, Auth
+    _is_authorized, _validate_request, require_auth, Auth, current_user, \
+    current_org
 from saraki.model import AppUser, AppOrg
 
 parametrize = pytest.mark.parametrize
@@ -693,6 +694,42 @@ class Test_validate_request(object):
         with app.test_request_context(path, headers=headers):
             with pytest.raises(AuthorizationError):
                 _validate_request()
+
+    @pytest.mark.usefixtures("data")
+    def test_current_user(self, app):
+
+        @app.route('/')
+        def index():
+            pass
+
+        payload = getpayload(sub='Coy0te')
+
+        token = jwt.encode(payload, app.config['SECRET_KEY']).decode()
+        headers = {'Authorization': f'JWT {token}'}
+
+        with app.test_request_context('/', headers=headers):
+            _validate_request()
+            assert current_user.username == 'Coy0te'
+
+        assert current_user._get_current_object() is None
+
+    @pytest.mark.usefixtures('data', 'data_org')
+    def test_current_org(self, app):
+
+        @app.route('/')
+        def index():
+            pass
+
+        payload = getpayload(sub='Coy0te', aud='acme')
+
+        token = jwt.encode(payload, app.config['SECRET_KEY']).decode()
+        headers = {'Authorization': f'JWT {token}'}
+
+        with app.test_request_context('/', headers=headers):
+            _validate_request()
+            assert current_org.orgname == 'acme'
+
+        assert current_org._get_current_object() is None
 
 
 @pytest.mark.usefixtures('data')

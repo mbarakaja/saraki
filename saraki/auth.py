@@ -31,8 +31,11 @@ HTTP_VERBS_CRUD = {
 }
 
 
-current_identity = LocalProxy(
-    lambda: getattr(_request_ctx_stack.top, 'current_identity', None))
+current_user = LocalProxy(
+    lambda: getattr(_request_ctx_stack.top, 'current_user', None))
+
+current_org = LocalProxy(
+    lambda: getattr(_request_ctx_stack.top, 'current_org', None))
 
 
 class Claim(str):
@@ -287,7 +290,7 @@ def _validate_request(resource=None, action=None):
     except (InvalidUserError, InvalidOrgError) as e:
         raise AuthorizationError('Invalid access token for this resource')
 
-    _request_ctx_stack.top.current_identity = user
+    _request_ctx_stack.top.current_user = user
     _request_ctx_stack.top.current_org = org
 
 

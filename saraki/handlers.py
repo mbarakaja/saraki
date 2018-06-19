@@ -1,6 +1,6 @@
 from flask import jsonify, request, abort, Blueprint
 
-from .auth import require_auth, current_identity
+from .auth import require_auth, current_user
 from .model import database, AppUser, AppOrg, AppOrgMember
 from .utility import generate_schema, json, export_from_sqla_object, Validator
 
@@ -59,7 +59,7 @@ def list_user_organizations(username):
     owned by the user and those where the user is a member.
     """
 
-    app_user_id = current_identity.id
+    app_user_id = current_user.id
 
     memberships = AppOrgMember.query.filter_by(app_user_id=app_user_id).all()
 
@@ -85,9 +85,9 @@ def add_organization_account(username):
     if v.validate(data) is False:
         abort(400, v.errors)
 
-    app_user = current_identity._get_current_object()
+    app_user = current_user._get_current_object()
 
-    data['app_user_id'] = current_identity.id
+    data['app_user_id'] = current_user.id
 
     app_org = AppOrg()
     app_org.import_data(data)
