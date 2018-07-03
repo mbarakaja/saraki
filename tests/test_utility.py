@@ -3,7 +3,7 @@ from json import loads
 from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import UnsupportedMediaType, BadRequest
 from flask import make_response
-from common import Product, Order, DummyBaseModel, DummyModel
+from common import Product, Order, OrderLine, DummyBaseModel, DummyModel
 from saraki.utility import import_into_sqla_object, export_from_sqla_object, \
     json, Validator, get_key_path
 
@@ -82,44 +82,24 @@ class Test_export_from_sqla_object():
 
         assert len(data) == 3
         assert len(data['lines']) == 3
-        assert {
-            'id': 1,
-            'order_id': 1,
-            'product_id': 1,
-            'quantity': 3,
-            'unit_price': 14
-        } in data['lines']
-
-        assert {
-            'id': 2,
-            'order_id': 1,
-            'product_id': 1,
-            'quantity': 4,
-            'unit_price': 142
-        } in data['lines']
-
-        assert {
-            'id': 3,
-            'order_id': 1,
-            'product_id': 1,
-            'quantity': 7,
-            'unit_price': 73
-        } in data['lines']
+        assert {'id': 1, 'quantity': 3, 'unit_price': 14} in data['lines']
+        assert {'id': 2, 'quantity': 4, 'unit_price': 142} in data['lines']
+        assert {'id': 3, 'quantity': 7, 'unit_price': 73} in data['lines']
 
     def test_loaded_one_to_one_relationship(self, ctx):
 
-        order = Order.query.options(joinedload(Order.customer)).get(1)
+        order = OrderLine.query.options(joinedload(OrderLine.product)).get(1)
         data = export_from_sqla_object(order)
 
-        assert len(data) == 3
+        assert len(data) == 6
         assert data['id'] == 1
-        assert data['customer_id'] == 1
-        assert data['customer'] == {
-            'id': 1,
-            'firstname': 'Nikola',
-            'lastname': 'Tesla',
-            'age': 24
-        }
+
+        product_data = data['product']
+        assert len(product_data) == 7
+        product_data['id'] = 1
+        product_data['name'] = 'Explosive Tennis Balls'
+        product_data['color'] = 'white'
+        product_data['price'] = 9
 
     def test_explicit_column_inclusion(self, ctx):
 
@@ -166,6 +146,26 @@ class Test_export_from_sqla_object():
         assert type(lst) == list
         assert len(lst) == 2
         assert {'id': 1, 'customer_id': 1} in lst
+
+    def test_list_of_sqlalchemy_objects_with_export_method(self, ctx):
+        lst = export_from_sqla_object(OrderLine.query.all())
+        data = lst[0]
+        assert len(data) == 3
+        assert 'id' in data
+        assert 'unit_price' in data
+        assert 'quantity' in data
+
+    def test_loaded_one_to_one_relationship_with_export_data_method(self, ctx):
+        order_line = Order.query \
+            .options(joinedload(Order.customer)).get(1)
+        data = export_from_sqla_object(order_line, include=['id'])
+
+        assert len(data) == 2
+
+        customer = data['customer']
+        assert len(customer) == 2
+        assert 'id' in customer
+        assert 'firstname' in customer
 
 
 class TestJson(object):

@@ -51,9 +51,14 @@ def export_from_sqla_object(model, include=[], exclude=[]):
 
     """
 
-    if type(model) == list:
-        return [export_from_sqla_object(item, include, exclude)
-                for item in model]
+    if isinstance(model, (list, InstrumentedList)):
+        has_export_data = len(model) > 0 and hasattr(model[0], 'export_data')
+
+        if has_export_data:
+            return [item.export_data() for item in model]
+        else:
+            return [export_from_sqla_object(item, include, exclude)
+                    for item in model]
 
     try:
         persisted = inspect(model).persistent
@@ -61,15 +66,12 @@ def export_from_sqla_object(model, include=[], exclude=[]):
         raise ValueError('Pass a valid SQLAlchemy mapped class instance')
 
     data = {}
-    is_including = len(include) > 0
     columns = model.__class__.__table__.columns
 
     for c in columns:
-
         name = c.name
 
-        if (not is_including or name in include) and (name not in exclude):
-
+        if (not include or name in include) and name not in exclude:
             column_value = getattr(model, name)
 
             data[name] = column_value if persisted else \
@@ -77,23 +79,20 @@ def export_from_sqla_object(model, include=[], exclude=[]):
                 column_value
 
     if persisted is True:
-
         unloaded_relationships = inspect(model).unloaded
         relationship_keys = [relationship.key for relationship in
                              model.__class__.__mapper__.relationships]
 
         for key in relationship_keys:
-
             if key not in unloaded_relationships and key not in exclude:
+                rproperty = getattr(model, key)
+                has_export_data = hasattr(rproperty, 'export_data')
+                data[key] = None
 
-                rproperty = data[key] = getattr(model, key)
-
-                if type(rproperty) is InstrumentedList:
-                    data[key] = \
-                        [export_from_sqla_object(item) for item in rproperty]
-                else:
-                    data[key] = export_from_sqla_object(rproperty) \
-                        if rproperty is not None else None
+                if has_export_data:
+                    data[key] = rproperty.export_data()
+                elif rproperty:
+                    data[key] = export_from_sqla_object(rproperty)
 
     return data
 

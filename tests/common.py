@@ -18,7 +18,7 @@ class DummyModel(Model):
     id = Column(Integer, primary_key=True)
 
 
-class Person(BaseModel):
+class Person(Model):
 
     __tablename__ = 'person'
 
@@ -29,6 +29,13 @@ class Person(BaseModel):
     lastname = Column(String, nullable=False)
 
     age = Column(Integer, nullable=False)
+
+    def export_data(
+        self,
+        include=['id', 'firstname'],
+        exclude=[]
+    ):
+        return super(Person, self).export_data(include, exclude)
 
 
 class Product(BaseModel):
@@ -63,7 +70,7 @@ class Order(BaseModel):
     customer = relationship('Person', uselist=False)
 
 
-class OrderLine(BaseModel):
+class OrderLine(Model):
 
     __tablename__ = 'order_line'
 
@@ -76,6 +83,15 @@ class OrderLine(BaseModel):
     unit_price = Column(Integer, nullable=False)
 
     quantity = Column(Integer, default=1, nullable=False)
+
+    product = relationship('Product', uselist=False)
+
+    def export_data(
+        self,
+        include=['id', 'unit_price', 'quantity'],
+        exclude=[]
+    ):
+        return super(OrderLine, self).export_data(include, exclude)
 
 
 class TransactionManager(object):
