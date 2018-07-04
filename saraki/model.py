@@ -59,6 +59,13 @@ class AppUser(Model):
 
         self.set_password(data['password'])
 
+    def export_data(
+        self,
+        include=[],
+        exclude=['id', 'password', 'canonical_username'],
+    ):
+        return super(AppUser, self).export_data(include, exclude)
+
     def __str__(self):
         return f'<AppUser {self.username}>'
 
@@ -125,3 +132,6 @@ class AppOrgMember(Model):
 
     org = relationship('AppOrg', uselist=False,)
     user = relationship('AppUser', uselist=False)
+
+    def export_data(self, include=[], exclude=['app_org_id', 'app_user_id']):
+        return super(AppOrgMember, self).export_data(include, exclude)

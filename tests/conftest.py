@@ -118,6 +118,29 @@ def data_org(ctx, savepoint):
     database.session.commit()
 
 
+@pytest.fixture
+def data_member(ctx, savepoint, data_org):
+
+    lst = [
+        {'username': 'R0adRunner', 'orgname': 'acme', 'is_owner': False},
+        {'username': 'Y0seSam', 'orgname': 'acme', 'is_owner': False}
+    ]
+
+    for data in lst:
+        user = AppUser.query.filter_by(username=data['username']).one()
+        org = AppOrg.query.filter_by(orgname=data['orgname']).one()
+
+        member = AppOrgMember(
+            user=user,
+            org=org,
+            is_owner=data['is_owner'],
+        )
+
+        database.session.add(member)
+
+    database.session.commit()
+
+
 @pytest.fixture(scope='session')
 def _trn():
     """Create a session wide instance of TransactionManager class.

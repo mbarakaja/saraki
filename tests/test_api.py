@@ -4,13 +4,15 @@ from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 from json import loads, dumps
 from assertions import list_is
+from cerberus import Validator
 from sqlalchemy.orm import joinedload
-from saraki.model import AppOrg, AppOrgMember
+from saraki.model import AppUser, AppOrg, AppOrgMember
+from saraki.utility import generate_schema
 from saraki.handlers import ORG_SCHEMA
 
 
-def login(username):
-
+@pytest.mark.usefixtures('client')
+def login(username, orgname=None, scope=None):
     iat = datetime.utcnow()
     exp = iat + timedelta(seconds=6000)
     payload = {
@@ -19,6 +21,12 @@ def login(username):
         'iat': iat,
         'exp': exp,
     }
+
+    if orgname:
+        payload.update({
+            'aud': orgname,
+            'scp': scope or {'org': ['manage']},
+        })
 
     token = jwt.encode(payload, 'secret').decode()
 
@@ -108,3 +116,77 @@ def test_list_user_orgs_endpoint(client, username, expected_lst):
 
     assert len(expected_lst) == len(returned_lst)
     assert list_is(expected_lst) <= returned_lst
+
+
+user_response_schema = generate_schema(
+    AppUser, exclude=['id', 'password', 'canonical_username'])
+
+
+member_response_schema = {
+   'user': {'type': 'dict', 'required': True, 'schema': user_response_schema},
+   'is_owner': {'type': 'boolean', 'required': True},
+   'enabled': {'type': 'boolean', 'required': True},
+}
+
+
+@pytest.mark.usefixtures('data', 'data_member')
+def test_list_members(client):
+    token = login('Coy0te', 'acme', scope={'org': ['read']})
+
+    rv = client.get(
+        '/orgs/acme/members',
+        headers={'Authorization': token},
+    )
+
+    assert rv.status_code == 200
+
+    data = loads(rv.data)
+    assert len(data) is 3
+
+    v = Validator(member_response_schema)
+
+    assert v.validate(data[0]), v.errors
+
+
+@pytest.mark.usefixtures('data', 'data_org')
+@pytest.mark.parametrize(
+    "username, status, error",
+    [
+        ('unknown', 400, 'User unknown does not exist'),
+        ('Coy0te', 400, 'Coy0te is already a member of acme'),
+    ]
+)
+def test_add_member_with_invalid_user(client, username, status, error):
+    data = {'username': username}
+    token = login('Coy0te', 'acme')
+
+    rv = client.post(
+        '/orgs/acme/members',
+        data=dumps(data),
+        content_type='application/json',
+        headers={'Authorization': token},
+    )
+
+    body = loads(rv.data)
+
+    assert rv.status_code == status
+    assert error in body['error']['username']
+
+
+@pytest.mark.usefixtures('data', 'data_org')
+def test_add_member(client):
+    data = {'username': 'R0adRunner'}
+    token = login('Coy0te', 'acme')
+
+    rv = client.post(
+        '/orgs/acme/members',
+        data=dumps(data),
+        content_type='application/json',
+        headers={'Authorization': token},
+    )
+
+    assert rv.status_code == 201
+
+    v = Validator(member_response_schema)
+    data = loads(rv.data)
+    assert v.validate(data), v.errors
