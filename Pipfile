@@ -1,0 +1,27 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+flask = "==1.0.2"
+sqlalchemy = "==1.2.10"
+flask-sqlalchemy = "==2.3.2"
+pyjwt = "==1.6.4"
+cerberus = "==1.2"
+passlib = "==1.7.1"
+"psycopg2-binary" = "==2.7.5"
+bcrypt = "==3.1.4"
+
+[dev-packages]
+pytest = "==3.7.1"
+tox = "==3.2.1"
+sphinx = "*"
+coverage = "*"
+pytest-randomly = "*"
+"flake8" = "*"
+watchdog = "*"
+twine = "*"
+
+[requires]
+python_version = "3.6"
