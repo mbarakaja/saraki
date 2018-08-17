@@ -3,6 +3,7 @@
 
 """The setup script."""
 
+from configparser import ConfigParser
 from setuptools import setup, find_packages
 
 with open('README.rst') as readme_file:
@@ -11,7 +12,22 @@ with open('README.rst') as readme_file:
 with open('HISTORY.rst') as history_file:
     history = history_file.read()
 
-requirements = []
+
+def clean(k, v):
+    rk = k[1:-1] if k[0] == '"' else k
+    rv = v[1:-1] if v[0] == '"' else v
+    return rk, rv
+
+# Pipfile is in toml format and the only parser available in installation time
+# is ConfigParser from the standar library. It can sort of parse it with some
+# help.
+
+
+pipfile = ConfigParser()
+pipfile.read('Pipfile')
+packages = dict(pipfile['packages'])
+
+requirements = [''.join(clean(key, value)) for key, value in packages.items()]
 
 setup_requirements = ['pytest-runner', ]
 
@@ -25,11 +41,6 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
-        "Programming Language :: Python :: 2",
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
     ],
     description="A web application helper",
