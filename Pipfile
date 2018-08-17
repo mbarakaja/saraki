@@ -22,6 +22,10 @@ pytest-randomly = "*"
 "flake8" = "*"
 watchdog = "*"
 twine = "*"
+braulio = "*"
 
 [requires]
 python_version = "3.6"
+
+[pipenv]
+allow_prereleases = true
