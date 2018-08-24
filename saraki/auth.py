@@ -234,7 +234,8 @@ def _is_authorized(payload, resource=None, action=None):
     criteria = []
 
     for c in request.view_args.values():
-        criteria.append(c.type in payload and c == payload[c.type])
+        if isinstance(c, Claim):
+            criteria.append(c.type in payload and c == payload[c.type])
 
     if not all(criteria):
         return False

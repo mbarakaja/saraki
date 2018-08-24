@@ -494,13 +494,22 @@ class Test_is_authorized(object):
         with app.test_request_context('/acme/private-info'):
             assert _is_authorized(payload) is expected
 
-    def test_route_without_required_claim(self, app, _payload):
+    def test_routes_without_required_claim(self, app, _payload):
 
+        # route without any view_args
         @app.route('/private-info')
-        def private_info():
+        def list_private():
+            return 'Private information'
+
+        # route with view_args
+        @app.route('/private-info/<int:id>')
+        def get_private(id):
             return 'Private information'
 
         with app.test_request_context('/private-info'):
+            assert _is_authorized(_payload) is True
+
+        with app.test_request_context('/private-info/1'):
             assert _is_authorized(_payload) is True
 
     @parametrize(
