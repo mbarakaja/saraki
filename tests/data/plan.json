@@ -1,0 +1,17 @@
+[
+    {
+        "name": "Basic",
+        "amount_of_members": 5,
+        "price": 0
+    },
+    {
+        "name": "R0adRunner",
+        "amount_of_members": 10,
+        "price": 20
+    },
+    {
+        "name": "Y0seSam",
+        "amount_of_members": 50,
+        "price": 100
+    }
+]

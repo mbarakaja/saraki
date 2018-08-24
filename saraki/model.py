@@ -19,6 +19,24 @@ class Model(BaseModel):
         return export_from_sqla_object(self, include, exclude)
 
 
+class AppPlan(Model):
+    """Plans available for your application."""
+
+    __tablename__ = 'plan'
+
+    #: Primary key
+    id = Column(Integer, primary_key=True)
+
+    #: A name for the plan. For instance, Pro, Business, Personal, etc.
+    name = Column(String(100), nullable=False, unique=True)
+
+    #: The amount of members that an organization can have.
+    amount_of_members = Column(Integer, nullable=False, default=1)
+
+    #: Price of the plan.
+    price = Column(Integer, nullable=False, unique=True)
+
+
 class AppUser(Model):
     """Application user accounts."""
 
@@ -95,11 +113,16 @@ class AppOrg(Model):
     #: :class:`AppOrgMember` for more information.
     app_user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
 
+    #: Plan selected from the :class:`AppPlan` table.
+    app_plan_id = Column(Integer, ForeignKey('plan.id'))
+
     #
     # - - - Relationships - - -
     #
 
     created_by = relationship('AppUser', uselist=False)
+
+    plan = relationship('AppPlan', uselist=False)
 
 
 class AppOrgMember(Model):

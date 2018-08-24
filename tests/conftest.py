@@ -3,7 +3,7 @@ import pytest
 from json import loads as load_json
 
 from saraki import Saraki
-from saraki.model import database, AppUser, AppOrg, AppOrgMember
+from saraki.model import database, AppPlan, AppUser, AppOrg, AppOrgMember
 
 from common import Person, Product, Order, OrderLine, TransactionManager
 from assertions import pytest_assertrepr_compare  # noqa: F401
@@ -55,19 +55,22 @@ def _insert_data(_setup_database):
             open('tests/data/order.json', 'r') as orders_file, \
             open('tests/data/order_line.json', 'r') as order_lines_file,  \
             open('tests/data/person.json', 'r') as persons_file, \
-            open('tests/data/user.json') as users_file:
+            open('tests/data/user.json') as users_file, \
+            open('tests/data/plan.json') as plans_file:
 
         person_ls = load_json(persons_file.read())
         product_ls = load_json(products_file.read())
         order_ls = load_json(orders_file.read())
         order_line_ls = load_json(order_lines_file.read())
         user_ls = load_json(users_file.read())
+        plans_ls = load_json(plans_file.read())
 
     with _app.app_context():
         database.session.add_all([Person(**item) for item in person_ls])
         database.session.add_all([Product(**item) for item in product_ls])
         database.session.add_all([Order(**item) for item in order_ls])
         database.session.add_all([OrderLine(**item) for item in order_line_ls])
+        database.session.add_all([AppPlan(**item) for item in plans_ls])
 
         for u in user_ls:
 

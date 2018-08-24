@@ -25,7 +25,12 @@ def login(username, orgname=None, scope=None):
     if orgname:
         payload.update({
             'aud': orgname,
-            'scp': scope or {'org': ['manage']},
+            'scp': {'org': ['manage']},
+        })
+
+    if scope:
+        payload.update({
+            'scp': scope,
         })
 
     token = jwt.encode(payload, 'secret').decode()
@@ -190,3 +195,51 @@ def test_add_member(client):
     v = Validator(member_response_schema)
     data = loads(rv.data)
     assert v.validate(data), v.errors
+
+
+@pytest.mark.usefixtures('data')
+def test_list_plans(client):
+
+    rv = client.get('/plans')
+    rv.status_code == 200
+
+    data = loads(rv.data)
+    assert len(data) == 3
+
+
+@pytest.mark.usefixtures('data')
+def test_get_plan(client):
+
+    rv = client.get('/plans/1')
+    rv.status_code == 200
+
+    data = loads(rv.data)
+    assert data['id'] == 1
+
+
+@pytest.mark.usefixtures('data')
+def test_add_plan(client):
+    token = login('Coy0te', scope={"app": ["write"]})
+    data = {'name': 'Enterprise', 'amount_of_members': 500, "price": 1000}
+
+    rv = client.post(
+        '/plans',
+        data=dumps(data),
+        content_type='application/json',
+        headers={'Authorization': token},
+    )
+
+    assert rv.status_code == 201, rv.data
+
+    data = loads(rv.data)
+
+
+@pytest.mark.usefixtures('data')
+def test_delete_plan(client):
+    token = login('Coy0te', scope={"app": ["delete"]})
+    url = '/plans/1'
+
+    rv = client.delete(url, headers={'Authorization': token})
+
+    assert rv.status_code == 200
+    assert client.get(url).status_code == 404
