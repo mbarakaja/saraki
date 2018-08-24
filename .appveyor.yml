@@ -1,0 +1,34 @@
+branches:
+  only:
+    - master
+    - dev
+
+build: false
+
+services:
+    - postgresql95
+
+environment:
+    global:
+        # Those are PostgreSQL default credential in AppVeyor
+        TEST_DATABASE_URI: postgresql://postgres:Password12!@localhost/saraki_test
+        TOXENV: py
+
+    matrix:
+        - PYTHON: "C:\\Python36-x64"
+        - PYTHON: "C:\\Python37-x64"
+
+init:
+  - SET PATH=%PYTHON%;%PATH%
+
+install:
+    - python -m pip install -U tox
+
+before_test:
+    - SET PGUSER=postgres
+    - SET PGPASSWORD=Password12!
+    - SET PATH=C:\Program Files\PostgreSQL\9.5\bin;%PATH%
+    - createdb saraki_test
+
+test_script:
+    - python -m tox
