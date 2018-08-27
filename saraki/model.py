@@ -8,15 +8,18 @@ database = SQLAlchemy()
 BaseModel = database.Model
 
 
-class Model(BaseModel):
-
-    __abstract__ = True
+class ModelMixin:
 
     def import_data(self, data):
         return import_into_sqla_object(self, data)
 
     def export_data(self, include=[], exclude=[]):
         return export_from_sqla_object(self, include, exclude)
+
+
+class Model(BaseModel, ModelMixin):
+
+    __abstract__ = True
 
 
 class AppPlan(Model):
