@@ -1345,3 +1345,25 @@ class TestEndpoint(object):
             headers['Authorization'] = f'JWT {token.decode()}'
 
         assert client.put('/movies', headers=headers).status_code == expected
+
+
+@pytest.mark.wip
+def test_register_persist_actions_handler():
+    auth = Auth()
+
+    @auth.persist_actions
+    def custom_handler(actions):
+        pass
+
+    assert auth._persist_actions_func == custom_handler
+
+
+@pytest.mark.wip
+def test_register_persist_resources_handler():
+    auth = Auth()
+
+    @auth.persist_resources
+    def custom_handler(resources):
+        pass
+
+    assert auth._persist_resources_func == custom_handler

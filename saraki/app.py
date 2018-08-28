@@ -32,5 +32,11 @@ class Saraki(Flask):
 
         errors.init_app(self)
 
+    def init(self):
+        if hasattr(self, 'auth'):
+            self.auth.persist_data()
+
+        database.session.commit()
+
     def add_default_endpoints(self):
         self.add_url_rule('/signup', 'signup', signup_view, methods=['POST'])

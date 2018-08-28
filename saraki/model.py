@@ -1,5 +1,5 @@
 from passlib.hash import bcrypt_sha256
-from sqlalchemy import Column, ForeignKey, Integer, String, Boolean
+from sqlalchemy import Column, ForeignKey, Integer, String, Boolean, Text
 from sqlalchemy.orm import relationship
 from flask_sqlalchemy import SQLAlchemy
 from saraki.utility import import_into_sqla_object, export_from_sqla_object
@@ -161,3 +161,82 @@ class Membership(Model):
 
     def export_data(self, include=[], exclude=['app_org_id', 'app_user_id']):
         return super(Membership, self).export_data(include, exclude)
+
+
+class Action(Model, ModelMixin):
+    """Actions performed across the application like manage, create, read,
+    update, delete, follow, etc.
+    """
+
+    __tablename__ = 'action'
+
+    id = Column(Integer, primary_key=True)
+
+    name = Column(String(80), nullable=False, unique=True)
+
+    description = Column(Text)
+
+    def import_data(self, data):
+        super(Action, self).import_data(data)
+
+
+class Resource(Model, ModelMixin):
+    """Application resources."""
+
+    __tablename__ = 'resource'
+
+    #: Primary Key.
+    id = Column(Integer, primary_key=True)
+
+    #: The name of the resource.
+    name = Column(String(80), nullable=False, unique=True)
+
+    #: A useful description, please.
+    description = Column(Text)
+
+    #: Parent resource.
+    parent_id = Column(Integer, ForeignKey('resource.id'))
+
+    #
+    # -- Relationships --
+    #
+
+    parent = relationship('Resource', uselist=False, remote_side=id)
+
+
+def _persist_actions(actions):
+    """Saves a list of actions in the database. Actions in the list that
+    already exist in the database are ignored.
+
+    Note that this doesn't commit the current session.
+
+    :param actions: list, tuple or set of action names.
+    """
+
+    actions = set(actions)
+    persisted = {action.name for action in Action.query.all()}
+    new_actions = actions - persisted
+
+    for name in new_actions:
+        action = Action(name=name)
+        database.session.add(action)
+
+
+def _persist_resources(resources, parent=None):
+    """Save resources in the database.
+
+    Note that this doesn't commit the current session.
+    """
+
+    persisted = {r.name: r for r in Resource.query.all()}
+
+    for key, value in resources.items():
+        if key not in persisted:
+            resource = Resource(name=key)
+            resource.parent = parent
+            database.session.add(resource)
+        else:
+            resource = persisted[key]
+
+        if value:
+            _persist_resources(value, resource)

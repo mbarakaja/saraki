@@ -12,7 +12,7 @@ from flask import request, current_app, jsonify, abort, _request_ctx_stack
 from werkzeug.routing import BaseConverter
 from werkzeug.local import LocalProxy
 
-from .model import User, Org, Membership
+from .model import User, Org, Membership, _persist_actions, _persist_resources
 from .utility import generate_schema, get_key_path
 from .exc import NotFoundCredentialError, InvalidUserError, InvalidOrgError, \
     InvalidMemberError, InvalidPasswordError, JWTError, TokenNotFoundError, \
@@ -384,12 +384,14 @@ def require_auth(resource=None, action=None, parent_resource=None):
     return decorator
 
 
-class Auth(object):
+class Auth:
 
     def __init__(self, app=None):
 
         self._resources = {}
         self._actions = ['manage']
+        self._persist_actions_func = _persist_actions
+        self._persist_resources_func = _persist_resources
 
         if app:
             self.init_app(app)
@@ -475,3 +477,20 @@ class Auth(object):
 
                 if action:
                     self._add_action(action)
+
+    def persist_actions(self, f):
+        """Registers a function called to persist actions in a database."""
+
+        self._persist_actions_func = f
+        return f
+
+    def persist_resources(self, f):
+        """Registers a function called to persist resources in a database."""
+
+        self._persist_resources_func = f
+        return f
+
+    def persist_data(self):
+        self._collect_metadata()
+        self._persist_actions_func(self.actions)
+        self._persist_resources_func(self.resources)
