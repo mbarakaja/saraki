@@ -16,7 +16,7 @@ from saraki.auth import _verify_username, _verify_orgname, _verify_member, \
     _generate_jwt_payload, _encode_jwt, _decode_jwt, _authenticate, \
     _is_authorized, _validate_request, require_auth, Auth, current_user, \
     current_org
-from saraki.model import AppUser, AppOrg
+from saraki.model import User, Org
 
 parametrize = pytest.mark.parametrize
 
@@ -231,8 +231,8 @@ class Test_generate_jwt_payload(object):
 
     @pytest.mark.usefixtures('data', 'data_org')
     def test_aud_claim(self, app):
-        user = AppUser.query.filter_by(username='Coy0te').one()
-        org = AppOrg.query.filter_by(orgname='acme').one()
+        user = User.query.filter_by(username='Coy0te').one()
+        org = Org.query.filter_by(orgname='acme').one()
 
         with app.app_context():
             payload = _generate_jwt_payload(user, org)
@@ -267,8 +267,8 @@ class Test_generate_jwt_payload(object):
     @pytest.mark.usefixtures('data', 'data_org')
     def test_scp_claim_for_organization_owners(self):
 
-        user = AppUser.query.filter_by(username='Coy0te').one()
-        org = AppOrg.query.filter_by(orgname='acme').one()
+        user = User.query.filter_by(username='Coy0te').one()
+        org = Org.query.filter_by(orgname='acme').one()
 
         payload = _generate_jwt_payload(user, org)
 

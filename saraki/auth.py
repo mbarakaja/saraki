@@ -12,14 +12,14 @@ from flask import request, current_app, jsonify, abort, _request_ctx_stack
 from werkzeug.routing import BaseConverter
 from werkzeug.local import LocalProxy
 
-from .model import AppUser, AppOrg, AppOrgMember
+from .model import User, Org, Membership
 from .utility import generate_schema, get_key_path
 from .exc import NotFoundCredentialError, InvalidUserError, InvalidOrgError, \
     InvalidMemberError, InvalidPasswordError, JWTError, TokenNotFoundError, \
     AuthorizationError, ProgrammingError
 
 
-AUTH_SCHEMA = generate_schema(AppUser, include=['username', 'password'])
+AUTH_SCHEMA = generate_schema(User, include=['username', 'password'])
 
 
 HTTP_VERBS_CRUD = {
@@ -74,7 +74,7 @@ class AudClaimConverter(BaseConverter):
 
 def _verify_username(username):
 
-    identity = AppUser.query \
+    identity = User.query \
         .filter_by(canonical_username=username.lower()).one_or_none()
 
     if identity is None:
@@ -85,7 +85,7 @@ def _verify_username(username):
 
 def _verify_orgname(orgname):
 
-    org = AppOrg.query.filter_by(orgname=orgname).one_or_none()
+    org = Org.query.filter_by(orgname=orgname).one_or_none()
 
     if org is None:
         raise InvalidOrgError(f'Orgname "{orgname}" is not registered')
@@ -94,7 +94,7 @@ def _verify_orgname(orgname):
 
 
 def _verify_member(user, org):
-    member = AppOrgMember.query \
+    member = Membership.query \
         .filter_by(app_user_id=user.id, app_org_id=org.id).one_or_none()
 
     if member is None:
@@ -149,7 +149,7 @@ def _generate_jwt_payload(user, org=None):
     if org:
         payload['aud'] = org.orgname
 
-        member = AppOrgMember.query.filter_by(
+        member = Membership.query.filter_by(
             app_user_id=user.id,
             app_org_id=org.id,
         ).one()

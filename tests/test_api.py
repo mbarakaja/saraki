@@ -6,7 +6,7 @@ from json import loads, dumps
 from assertions import list_is
 from cerberus import Validator
 from sqlalchemy.orm import joinedload
-from saraki.model import AppUser, AppOrg, AppOrgMember
+from saraki.model import User, Org, Membership
 from saraki.utility import generate_schema
 from saraki.handlers import ORG_SCHEMA
 
@@ -57,7 +57,7 @@ def test_add_org_endpoint_data_validation(MockValidator, client):
 
     assert rv.status_code == 400
 
-    MockValidator.assert_called_once_with(ORG_SCHEMA, AppOrg)
+    MockValidator.assert_called_once_with(ORG_SCHEMA, Org)
     v.validate.assert_called_once_with({'prop': 'value'})
 
 
@@ -82,14 +82,14 @@ def test_add_org_endpoint(req_payload, status_code, client):
     assert rv.status_code == status_code
 
     if rv.status_code == 201:
-        org = AppOrg.query \
+        org = Org.query \
             .options(
-                joinedload(AppOrg.created_by)
+                joinedload(Org.created_by)
             ).filter_by(
                 orgname=req_payload['orgname']
             ).one()
 
-        member = AppOrgMember.query \
+        member = Membership.query \
             .filter_by(
                 app_org_id=org.id,
                 app_user_id=org.created_by.id,
@@ -124,7 +124,7 @@ def test_list_user_orgs_endpoint(client, username, expected_lst):
 
 
 user_response_schema = generate_schema(
-    AppUser, exclude=['id', 'password', 'canonical_username'])
+    User, exclude=['id', 'password', 'canonical_username'])
 
 
 member_response_schema = {

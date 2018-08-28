@@ -3,7 +3,7 @@ import pytest
 from json import loads as load_json
 
 from saraki import Saraki
-from saraki.model import database, AppPlan, AppUser, AppOrg, AppOrgMember
+from saraki.model import database, Plan, User, Org, Membership
 
 from common import Person, Product, Order, OrderLine, TransactionManager
 from assertions import pytest_assertrepr_compare  # noqa: F401
@@ -70,7 +70,7 @@ def _insert_data(_setup_database):
         database.session.add_all([Product(**item) for item in product_ls])
         database.session.add_all([Order(**item) for item in order_ls])
         database.session.add_all([OrderLine(**item) for item in order_line_ls])
-        database.session.add_all([AppPlan(**item) for item in plans_ls])
+        database.session.add_all([Plan(**item) for item in plans_ls])
 
         for u in user_ls:
 
@@ -81,7 +81,7 @@ def _insert_data(_setup_database):
                 'email': u['email']
             }
 
-            user = AppUser(**data)
+            user = User(**data)
             database.session.add(user)
 
         database.session.commit()
@@ -101,16 +101,16 @@ def data_org(ctx, savepoint):
     ]
 
     for data in lst:
-        user = AppUser.query.filter_by(username=data['username']).one()
+        user = User.query.filter_by(username=data['username']).one()
 
-        org = AppOrg(
+        org = Org(
             orgname=data['orgname'],
             name=data['name'],
             created_by=user
         )
         database.session.add(org)
 
-        member = AppOrgMember(
+        member = Membership(
             user=user,
             org=org,
             is_owner=True,
@@ -130,10 +130,10 @@ def data_member(ctx, savepoint, data_org):
     ]
 
     for data in lst:
-        user = AppUser.query.filter_by(username=data['username']).one()
-        org = AppOrg.query.filter_by(orgname=data['orgname']).one()
+        user = User.query.filter_by(username=data['username']).one()
+        org = Org.query.filter_by(orgname=data['orgname']).one()
 
-        member = AppOrgMember(
+        member = Membership(
             user=user,
             org=org,
             is_owner=data['is_owner'],

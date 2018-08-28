@@ -1,11 +1,11 @@
 from flask import jsonify, request, abort, Blueprint
 from sqlalchemy.orm import joinedload
 from .auth import require_auth, current_user, current_org
-from .model import database, AppPlan, AppUser, AppOrg, AppOrgMember
+from .model import database, Plan, User, Org, Membership
 from .utility import generate_schema, json, export_from_sqla_object, Validator
 
 user_schema = generate_schema(
-    AppUser,
+    User,
     exclude=['canonical_username', 'active']
 )
 
@@ -19,7 +19,7 @@ def signup_view():
     if v.validate(data) is False:
         abort(400, v.errors)
 
-    user = AppUser()
+    user = User()
     user.import_data(data)
 
     database.session.add(user)
@@ -31,20 +31,20 @@ def signup_view():
 appbp = Blueprint("app", __name__)
 
 
-app_plan_schema = generate_schema(AppPlan)
+app_plan_schema = generate_schema(Plan)
 
 
 @appbp.route('/plans', methods=['GET'])
 @json
 def list_plans():
     return [item.export_data()
-            for item in AppPlan.query.all()], 200
+            for item in Plan.query.all()], 200
 
 
 @appbp.route('/plans/<int:id>', methods=['GET'])
 @json
 def get_plan(id):
-    return AppPlan.query.get_or_404(id)
+    return Plan.query.get_or_404(id)
 
 
 @appbp.route('/plans', methods=['POST'])
@@ -58,7 +58,7 @@ def add_plan():
     if v.validate(data) is False:
         abort(400, v.errors)
 
-    app_plan = AppPlan()
+    app_plan = Plan()
     app_plan.import_data(data)
     database.session.add(app_plan)
     database.session.commit()
@@ -69,7 +69,7 @@ def add_plan():
 @require_auth('app')
 @json
 def edit_plan(id):
-    app_plan = AppPlan.query.get_or_404(id)
+    app_plan = Plan.query.get_or_404(id)
     app_plan.import_data(request.json)
     database.session.commit()
     return app_plan, 200
@@ -79,7 +79,7 @@ def edit_plan(id):
 @require_auth('app')
 @json
 def delete_plan(id):
-    app_plan = AppPlan.query.get_or_404(id)
+    app_plan = Plan.query.get_or_404(id)
     database.session.delete(app_plan)
     database.session.commit()
     return {}
@@ -90,7 +90,7 @@ def delete_plan(id):
     ~~~~~~~~~~~~~~~~~~
 """
 
-ORG_SCHEMA = generate_schema(AppOrg, exclude=['id', 'app_user_id'])
+ORG_SCHEMA = generate_schema(Org, exclude=['id', 'app_user_id'])
 ORG_SCHEMA['orgname']['unique'] = True
 
 
@@ -98,7 +98,7 @@ def _add_member(app_org, app_user, extra_data={}):
     data = {'app_user_id': app_user.id, 'app_org_id': app_org.id}
     data.update(extra_data)
 
-    member = AppOrgMember()
+    member = Membership()
     member.import_data(data)
     database.session.add(member)
 
@@ -115,7 +115,7 @@ def list_user_organizations(username):
 
     app_user_id = current_user.id
 
-    memberships = AppOrgMember.query.filter_by(app_user_id=app_user_id).all()
+    memberships = Membership.query.filter_by(app_user_id=app_user_id).all()
 
     org_list = [export_from_sqla_object(m.org) for m in memberships]
 
@@ -134,7 +134,7 @@ def add_organization_account(username):
     """
 
     data = request.get_json()
-    v = Validator(ORG_SCHEMA, AppOrg)
+    v = Validator(ORG_SCHEMA, Org)
 
     if v.validate(data) is False:
         abort(400, v.errors)
@@ -143,7 +143,7 @@ def add_organization_account(username):
 
     data['app_user_id'] = current_user.id
 
-    app_org = AppOrg()
+    app_org = Org()
     app_org.import_data(data)
 
     database.session.add(app_org)
@@ -161,7 +161,7 @@ def add_organization_account(username):
 @json
 def list_members(orgname):
     app_org_id = current_org.id
-    member_list = AppOrgMember.query.options(
+    member_list = Membership.query.options(
         joinedload('user')
     ).filter_by(
         app_org_id=app_org_id
@@ -172,13 +172,13 @@ def list_members(orgname):
 
 def member_username_validator(field, value, error):
     username = value
-    user = AppUser.query.filter_by(username=value).one_or_none()
+    user = User.query.filter_by(username=value).one_or_none()
 
     if not user:
         error(field, f'User {username} does not exist')
         return
 
-    member = AppOrgMember.query.filter_by(
+    member = Membership.query.filter_by(
         app_user_id=user.id,
         app_org_id=current_org.id,
     ).one_or_none()
@@ -208,9 +208,9 @@ def add_member(orgname):
         abort(400, v.errors)
 
     username = data['username']
-    user = AppUser.query.filter_by(username=username).one()
+    user = User.query.filter_by(username=username).one()
 
-    member = AppOrgMember(
+    member = Membership(
         app_user_id=user.id,
         app_org_id=current_org.id,
     )
@@ -218,8 +218,8 @@ def add_member(orgname):
     database.session.add(member)
     database.session.commit()
 
-    member = AppOrgMember.query.options(
-        joinedload(AppOrgMember.user)
+    member = Membership.query.options(
+        joinedload(Membership.user)
     ).filter_by(
        app_user_id=user.id,
        app_org_id=current_org.id,
