@@ -24,6 +24,7 @@ watchdog = "*"
 twine = "*"
 braulio = "*"
 black = "*"
+"flake8-bugbear" = "*"
 
 [requires]
 python_version = "3.6"

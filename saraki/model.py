@@ -12,7 +12,7 @@ class ModelMixin:
     def import_data(self, data):
         return import_into_sqla_object(self, data)
 
-    def export_data(self, include=[], exclude=[]):
+    def export_data(self, include=(), exclude=()):
         return export_from_sqla_object(self, include, exclude)
 
 
@@ -79,7 +79,7 @@ class User(Model):
 
         self.set_password(data["password"])
 
-    def export_data(self, include=[], exclude=["id", "password", "canonical_username"]):
+    def export_data(self, include=(), exclude=("id", "password", "canonical_username")):
         return super(User, self).export_data(include, exclude)
 
     def __str__(self):
@@ -153,7 +153,7 @@ class Membership(Model):
     org = relationship("Org", uselist=False)
     user = relationship("User", uselist=False)
 
-    def export_data(self, include=[], exclude=["app_org_id", "app_user_id"]):
+    def export_data(self, include=(), exclude=("app_org_id", "app_user_id")):
         return super(Membership, self).export_data(include, exclude)
 
 

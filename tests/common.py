@@ -30,7 +30,7 @@ class Person(Model):
 
     age = Column(Integer, nullable=False)
 
-    def export_data(self, include=["id", "firstname"], exclude=[]):
+    def export_data(self, include=("id", "firstname"), exclude=()):
         return super(Person, self).export_data(include, exclude)
 
 
@@ -82,7 +82,7 @@ class OrderLine(Model):
 
     product = relationship("Product", uselist=False)
 
-    def export_data(self, include=["id", "unit_price", "quantity"], exclude=[]):
+    def export_data(self, include=("id", "unit_price", "quantity"), exclude=()):
         return super(OrderLine, self).export_data(include, exclude)
 
 

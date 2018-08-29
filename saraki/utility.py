@@ -37,7 +37,7 @@ def _get_column_default(c):
     return d.arg if isinstance(getattr(d, "arg", None), (int, str, bool)) else None
 
 
-def export_from_sqla_object(model, include=[], exclude=[]):
+def export_from_sqla_object(model, include=(), exclude=()):
     """Return a dictionary base on the object columns/values. If a list of
     column names is passed, the output will contains just those columns
     that appears in the list.
@@ -101,7 +101,7 @@ def export_from_sqla_object(model, include=[], exclude=[]):
     return data
 
 
-def generate_schema(model_class, include=[], exclude=[]):
+def generate_schema(model_class, include=(), exclude=()):
     """Inspect a SQLAlchemy Model Class and return a validation schema
     to be used with the Cerberus library. The schema is generated mapping some
     Cerberus rules with SQLAlchemy model class column types and constraints, as

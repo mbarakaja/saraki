@@ -90,9 +90,11 @@ ORG_SCHEMA = generate_schema(Org, exclude=["id", "app_user_id"])
 ORG_SCHEMA["orgname"]["unique"] = True
 
 
-def _add_member(app_org, app_user, extra_data={}):
+def _add_member(app_org, app_user, extra_data=None):
     data = {"app_user_id": app_user.id, "app_org_id": app_org.id}
-    data.update(extra_data)
+
+    if extra_data:
+        data.update(extra_data)
 
     member = Membership()
     member.import_data(data)
