@@ -8,7 +8,7 @@ from cerberus import Validator
 from sqlalchemy.orm import joinedload
 from saraki.model import User, Org, Membership
 from saraki.utility import generate_schema
-from saraki.handlers import ORG_SCHEMA
+from saraki.api import ORG_SCHEMA
 
 
 @pytest.mark.usefixtures("client")
@@ -29,7 +29,7 @@ def login(username, orgname=None, scope=None):
 
 
 @pytest.mark.usefixtures("data")
-@patch("saraki.handlers.Validator")
+@patch("saraki.api.Validator")
 def test_add_org_endpoint_data_validation(MockValidator, client):
 
     v = MagicMock()

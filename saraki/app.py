@@ -2,7 +2,7 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from . import errors
 from . import config as _default_config
-from .handlers import signup_view, appbp
+from .api import signup_view, appbp
 from .model import database
 from .auth import Auth
 
