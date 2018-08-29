@@ -10,12 +10,12 @@ from assertions import pytest_assertrepr_compare  # noqa: F401
 
 
 needdatabase = pytest.mark.skipif(
-    os.getenv('DATABASE_URI') is None,
-    reason="This need a database connection and DATABASE_URI is not defined"
+    os.getenv("DATABASE_URI") is None,
+    reason="This need a database connection and DATABASE_URI is not defined",
 )
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def _setup_database(request):
     """Setup the database
 
@@ -23,7 +23,7 @@ def _setup_database(request):
     """
 
     _app = Saraki(__name__, db=None)
-    _app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['TEST_DATABASE_URI']
+    _app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["TEST_DATABASE_URI"]
     database.init_app(_app)
 
     with _app.app_context():
@@ -39,7 +39,7 @@ def _setup_database(request):
     return database
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def _insert_data(_setup_database):
     """Put the database in a known state by inserting
     predefined data.
@@ -48,15 +48,18 @@ def _insert_data(_setup_database):
     """
 
     _app = Saraki(__name__, db=None)
-    _app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['TEST_DATABASE_URI']
+    _app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["TEST_DATABASE_URI"]
     database.init_app(_app)
 
-    with open('tests/data/product.json', 'r') as products_file, \
-            open('tests/data/order.json', 'r') as orders_file, \
-            open('tests/data/order_line.json', 'r') as order_lines_file,  \
-            open('tests/data/person.json', 'r') as persons_file, \
-            open('tests/data/user.json') as users_file, \
-            open('tests/data/plan.json') as plans_file:
+    with open("tests/data/product.json", "r") as products_file, open(
+        "tests/data/order.json", "r"
+    ) as orders_file, open("tests/data/order_line.json", "r") as order_lines_file, open(
+        "tests/data/person.json", "r"
+    ) as persons_file, open(
+        "tests/data/user.json"
+    ) as users_file, open(
+        "tests/data/plan.json"
+    ) as plans_file:
 
         person_ls = load_json(persons_file.read())
         product_ls = load_json(products_file.read())
@@ -75,10 +78,10 @@ def _insert_data(_setup_database):
         for u in user_ls:
 
             data = {
-                'username': u['username'],
-                'canonical_username': u['username'].lower(),
-                'password': u['hashed_password'],
-                'email': u['email']
+                "username": u["username"],
+                "canonical_username": u["username"].lower(),
+                "password": u["hashed_password"],
+                "email": u["email"],
             }
 
             user = User(**data)
@@ -96,25 +99,17 @@ def data(_insert_data, database_conn):
 def data_org(ctx, savepoint):
 
     lst = [
-        {'username': 'Coy0te', 'orgname': 'acme', 'name': 'Acme Corporation'},
-        {'username': 'R0adRunner', 'orgname': 'rrinc', 'name': 'RR Inc'}
+        {"username": "Coy0te", "orgname": "acme", "name": "Acme Corporation"},
+        {"username": "R0adRunner", "orgname": "rrinc", "name": "RR Inc"},
     ]
 
     for data in lst:
-        user = User.query.filter_by(username=data['username']).one()
+        user = User.query.filter_by(username=data["username"]).one()
 
-        org = Org(
-            orgname=data['orgname'],
-            name=data['name'],
-            created_by=user
-        )
+        org = Org(orgname=data["orgname"], name=data["name"], created_by=user)
         database.session.add(org)
 
-        member = Membership(
-            user=user,
-            org=org,
-            is_owner=True,
-        )
+        member = Membership(user=user, org=org, is_owner=True)
 
         database.session.add(member)
 
@@ -125,26 +120,22 @@ def data_org(ctx, savepoint):
 def data_member(ctx, savepoint, data_org):
 
     lst = [
-        {'username': 'R0adRunner', 'orgname': 'acme', 'is_owner': False},
-        {'username': 'Y0seSam', 'orgname': 'acme', 'is_owner': False}
+        {"username": "R0adRunner", "orgname": "acme", "is_owner": False},
+        {"username": "Y0seSam", "orgname": "acme", "is_owner": False},
     ]
 
     for data in lst:
-        user = User.query.filter_by(username=data['username']).one()
-        org = Org.query.filter_by(orgname=data['orgname']).one()
+        user = User.query.filter_by(username=data["username"]).one()
+        org = Org.query.filter_by(orgname=data["orgname"]).one()
 
-        member = Membership(
-            user=user,
-            org=org,
-            is_owner=data['is_owner'],
-        )
+        member = Membership(user=user, org=org, is_owner=data["is_owner"])
 
         database.session.add(member)
 
     database.session.commit()
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def _trn():
     """Create a session wide instance of TransactionManager class.
 
@@ -157,9 +148,9 @@ def _trn():
 @pytest.fixture
 def app(request):
 
-    app = Saraki('flask_test', root_path=os.path.dirname(__file__), db=None)
-    app.config['TESTING'] = True
-    app.config['SECRET_KEY'] = 'secret'
+    app = Saraki("flask_test", root_path=os.path.dirname(__file__), db=None)
+    app.config["TESTING"] = True
+    app.config["SECRET_KEY"] = "secret"
 
     return app
 
@@ -171,7 +162,7 @@ def request_ctx(app):
 
 @pytest.fixture
 def database_conn(app):
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('TEST_DATABASE_URI')
+    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("TEST_DATABASE_URI")
     database.init_app(app)
 
 

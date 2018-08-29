@@ -1,5 +1,3 @@
-
-
 def is_list_subset_another(subset_lst, lst):
 
     if subset_lst is lst:
@@ -22,7 +20,6 @@ def is_list_subset_another(subset_lst, lst):
 
 
 class AssertList:
-
     def __init__(self, lst):
         self.lst = lst
 
@@ -41,9 +38,9 @@ class AssertList:
 
 def pytest_assertrepr_compare(config, op, left, right):
 
-    if isinstance(left, AssertList) and op in {'<=', '>='}:
+    if isinstance(left, AssertList) and op in {"<=", ">="}:
 
-        statement = f'{left.lst} {op} {right}'
+        statement = f"{left.lst} {op} {right}"
 
         return [statement]
 

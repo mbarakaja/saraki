@@ -8,14 +8,7 @@ from .auth import Auth
 
 
 class Saraki(Flask):
-
-    def __init__(
-        self,
-        import_name,
-        auth=Auth(),
-        db=database,
-        **kargs
-    ):
+    def __init__(self, import_name, auth=Auth(), db=database, **kargs):
 
         super(Saraki, self).__init__(import_name, **kargs)
 
@@ -33,10 +26,10 @@ class Saraki(Flask):
         errors.init_app(self)
 
     def init(self):
-        if hasattr(self, 'auth'):
+        if hasattr(self, "auth"):
             self.auth.persist_data()
 
         database.session.commit()
 
     def add_default_endpoints(self):
-        self.add_url_rule('/signup', 'signup', signup_view, methods=['POST'])
+        self.add_url_rule("/signup", "signup", signup_view, methods=["POST"])

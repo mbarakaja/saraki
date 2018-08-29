@@ -4,10 +4,7 @@ from .auth import require_auth, current_user, current_org
 from .model import database, Plan, User, Org, Membership
 from .utility import generate_schema, json, export_from_sqla_object, Validator
 
-user_schema = generate_schema(
-    User,
-    exclude=['canonical_username', 'active']
-)
+user_schema = generate_schema(User, exclude=["canonical_username", "active"])
 
 
 def signup_view():
@@ -25,7 +22,7 @@ def signup_view():
     database.session.add(user)
     database.session.commit()
 
-    return jsonify({'username': user.username}), 201
+    return jsonify({"username": user.username}), 201
 
 
 appbp = Blueprint("app", __name__)
@@ -34,21 +31,20 @@ appbp = Blueprint("app", __name__)
 app_plan_schema = generate_schema(Plan)
 
 
-@appbp.route('/plans', methods=['GET'])
+@appbp.route("/plans", methods=["GET"])
 @json
 def list_plans():
-    return [item.export_data()
-            for item in Plan.query.all()], 200
+    return [item.export_data() for item in Plan.query.all()], 200
 
 
-@appbp.route('/plans/<int:id>', methods=['GET'])
+@appbp.route("/plans/<int:id>", methods=["GET"])
 @json
 def get_plan(id):
     return Plan.query.get_or_404(id)
 
 
-@appbp.route('/plans', methods=['POST'])
-@require_auth('app')
+@appbp.route("/plans", methods=["POST"])
+@require_auth("app")
 @json
 def add_plan():
     data = request.get_json()
@@ -65,8 +61,8 @@ def add_plan():
     return app_plan, 201
 
 
-@appbp.route('/plans/<int:id>', methods=['PUT'])
-@require_auth('app')
+@appbp.route("/plans/<int:id>", methods=["PUT"])
+@require_auth("app")
 @json
 def edit_plan(id):
     app_plan = Plan.query.get_or_404(id)
@@ -75,8 +71,8 @@ def edit_plan(id):
     return app_plan, 200
 
 
-@appbp.route('/plans/<int:id>', methods=['DELETE'])
-@require_auth('app')
+@appbp.route("/plans/<int:id>", methods=["DELETE"])
+@require_auth("app")
 @json
 def delete_plan(id):
     app_plan = Plan.query.get_or_404(id)
@@ -90,12 +86,12 @@ def delete_plan(id):
     ~~~~~~~~~~~~~~~~~~
 """
 
-ORG_SCHEMA = generate_schema(Org, exclude=['id', 'app_user_id'])
-ORG_SCHEMA['orgname']['unique'] = True
+ORG_SCHEMA = generate_schema(Org, exclude=["id", "app_user_id"])
+ORG_SCHEMA["orgname"]["unique"] = True
 
 
 def _add_member(app_org, app_user, extra_data={}):
-    data = {'app_user_id': app_user.id, 'app_org_id': app_org.id}
+    data = {"app_user_id": app_user.id, "app_org_id": app_org.id}
     data.update(extra_data)
 
     member = Membership()
@@ -105,7 +101,7 @@ def _add_member(app_org, app_user, extra_data={}):
     return member
 
 
-@appbp.route('/users/<sub:username>/orgs')
+@appbp.route("/users/<sub:username>/orgs")
 @require_auth()
 @json
 def list_user_organizations(username):
@@ -122,7 +118,7 @@ def list_user_organizations(username):
     return org_list, 200
 
 
-@appbp.route('/users/<sub:username>/orgs', methods=['POST'])
+@appbp.route("/users/<sub:username>/orgs", methods=["POST"])
 @require_auth()
 @json
 def add_organization_account(username):
@@ -141,7 +137,7 @@ def add_organization_account(username):
 
     app_user = current_user._get_current_object()
 
-    data['app_user_id'] = current_user.id
+    data["app_user_id"] = current_user.id
 
     app_org = Org()
     app_org.import_data(data)
@@ -149,23 +145,23 @@ def add_organization_account(username):
     database.session.add(app_org)
     database.session.flush()
 
-    _add_member(app_org, app_user, {'is_owner': True})
+    _add_member(app_org, app_user, {"is_owner": True})
 
     database.session.commit()
 
     return app_org, 201
 
 
-@appbp.route('/orgs/<aud:orgname>/members')
-@require_auth('org')
+@appbp.route("/orgs/<aud:orgname>/members")
+@require_auth("org")
 @json
 def list_members(orgname):
     app_org_id = current_org.id
-    member_list = Membership.query.options(
-        joinedload('user')
-    ).filter_by(
-        app_org_id=app_org_id
-    ).all()
+    member_list = (
+        Membership.query.options(joinedload("user"))
+        .filter_by(app_org_id=app_org_id)
+        .all()
+    )
 
     return [member.export_data() for member in member_list], 200
 
@@ -175,30 +171,29 @@ def member_username_validator(field, value, error):
     user = User.query.filter_by(username=value).one_or_none()
 
     if not user:
-        error(field, f'User {username} does not exist')
+        error(field, f"User {username} does not exist")
         return
 
     member = Membership.query.filter_by(
-        app_user_id=user.id,
-        app_org_id=current_org.id,
+        app_user_id=user.id, app_org_id=current_org.id
     ).one_or_none()
 
     if member:
         orgname = current_org.orgname
-        error(field, f'{username} is already a member of {orgname}')
+        error(field, f"{username} is already a member of {orgname}")
 
 
 new_member_schema = {
-    'username': {
-        'type': 'string',
-        'validator': member_username_validator,
-        'required': True,
-    },
+    "username": {
+        "type": "string",
+        "validator": member_username_validator,
+        "required": True,
+    }
 }
 
 
-@appbp.route('/orgs/<aud:orgname>/members', methods=['POST'])
-@require_auth('org')
+@appbp.route("/orgs/<aud:orgname>/members", methods=["POST"])
+@require_auth("org")
 @json
 def add_member(orgname):
     data = request.get_json()
@@ -207,22 +202,18 @@ def add_member(orgname):
     if v.validate(data) is False:
         abort(400, v.errors)
 
-    username = data['username']
+    username = data["username"]
     user = User.query.filter_by(username=username).one()
 
-    member = Membership(
-        app_user_id=user.id,
-        app_org_id=current_org.id,
-    )
+    member = Membership(app_user_id=user.id, app_org_id=current_org.id)
 
     database.session.add(member)
     database.session.commit()
 
-    member = Membership.query.options(
-        joinedload(Membership.user)
-    ).filter_by(
-       app_user_id=user.id,
-       app_org_id=current_org.id,
-    ).one()
+    member = (
+        Membership.query.options(joinedload(Membership.user))
+        .filter_by(app_user_id=user.id, app_org_id=current_org.id)
+        .one()
+    )
 
     return member, 201

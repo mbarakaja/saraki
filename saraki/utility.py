@@ -10,11 +10,11 @@ from flask.wrappers import Response
 
 
 schema_type_conversions = {
-    int: 'integer',
-    str: 'string',
-    bool: 'boolean',
-    datetime.date: 'string',
-    datetime.datetime: 'string',
+    int: "integer",
+    str: "string",
+    bool: "boolean",
+    datetime.date: "string",
+    datetime.datetime: "string",
 }
 
 
@@ -34,8 +34,7 @@ def import_into_sqla_object(model_instance, data):
 
 def _get_column_default(c):
     d = c.default
-    return d.arg if isinstance(getattr(d, 'arg', None), (int, str, bool)) \
-        else None
+    return d.arg if isinstance(getattr(d, "arg", None), (int, str, bool)) else None
 
 
 def export_from_sqla_object(model, include=[], exclude=[]):
@@ -52,18 +51,17 @@ def export_from_sqla_object(model, include=[], exclude=[]):
     """
 
     if isinstance(model, (list, InstrumentedList)):
-        has_export_data = len(model) > 0 and hasattr(model[0], 'export_data')
+        has_export_data = len(model) > 0 and hasattr(model[0], "export_data")
 
         if has_export_data:
             return [item.export_data() for item in model]
         else:
-            return [export_from_sqla_object(item, include, exclude)
-                    for item in model]
+            return [export_from_sqla_object(item, include, exclude) for item in model]
 
     try:
         persisted = inspect(model).persistent
     except NoInspectionAvailable as e:
-        raise ValueError('Pass a valid SQLAlchemy mapped class instance')
+        raise ValueError("Pass a valid SQLAlchemy mapped class instance")
 
     data = {}
     columns = model.__class__.__table__.columns
@@ -74,19 +72,25 @@ def export_from_sqla_object(model, include=[], exclude=[]):
         if (not include or name in include) and name not in exclude:
             column_value = getattr(model, name)
 
-            data[name] = column_value if persisted else \
-                _get_column_default(c) if column_value is None else \
+            data[name] = (
                 column_value
+                if persisted
+                else _get_column_default(c)
+                if column_value is None
+                else column_value
+            )
 
     if persisted is True:
         unloaded_relationships = inspect(model).unloaded
-        relationship_keys = [relationship.key for relationship in
-                             model.__class__.__mapper__.relationships]
+        relationship_keys = [
+            relationship.key
+            for relationship in model.__class__.__mapper__.relationships
+        ]
 
         for key in relationship_keys:
             if key not in unloaded_relationships and key not in exclude:
                 rproperty = getattr(model, key)
-                has_export_data = hasattr(rproperty, 'export_data')
+                has_export_data = hasattr(rproperty, "export_data")
                 data[key] = None
 
                 if has_export_data:
@@ -135,21 +139,24 @@ def generate_schema(model_class, include=[], exclude=[]):
 
         python_type = column.type.python_type
 
-        prop['type'] = schema_type_conversions.get(python_type)
+        prop["type"] = schema_type_conversions.get(python_type)
 
-        if prop['type'] is None:
-            raise LookupError('Unable to determine the column type')
+        if prop["type"] is None:
+            raise LookupError("Unable to determine the column type")
 
         if python_type == str and column.type.length is not None:
-            prop['maxlength'] = column.type.length
+            prop["maxlength"] = column.type.length
 
         if column.primary_key is True:
-            prop['readonly'] = True
+            prop["readonly"] = True
 
-        if column.default is None and column.server_default is None \
-            and column.nullable is False \
-           and column.primary_key is False:
-            prop['required'] = True
+        if (
+            column.default is None
+            and column.server_default is None
+            and column.nullable is False
+            and column.primary_key is False
+        ):
+            prop["required"] = True
 
         schema[name] = prop
 
@@ -195,13 +202,15 @@ def json(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
 
-        if request.method == 'POST':
-            if request.content_type is None or \
-               'application/json' not in request.content_type:
-                abort(415, 'application/json mimetype expected')
+        if request.method == "POST":
+            if (
+                request.content_type is None
+                or "application/json" not in request.content_type
+            ):
+                abort(415, "application/json mimetype expected")
 
             if request.get_json(silent=True) is None:
-                abort(400, 'The body request has an invalid JSON object')
+                abort(400, "The body request has an invalid JSON object")
 
         ro = func(*args, **kwargs)  # returned object
 
@@ -218,9 +227,12 @@ def json(func):
 
         body, status, headers = ro + (None,) * (3 - len(ro))
 
-        if hasattr(body, '__table__'):
-            body = body.export_data() if hasattr(body, 'export_data') \
+        if hasattr(body, "__table__"):
+            body = (
+                body.export_data()
+                if hasattr(body, "export_data")
                 else export_from_sqla_object(body)
+            )
 
         response_object = jsonify(body)
 
@@ -231,24 +243,24 @@ def json(func):
             response_object.headers.extend(headers or {})
 
         return response_object
+
     return wrapper
 
 
 class Validator(_Validator):
-
     def __init__(self, schema, model_class=None, **kwargs):
         super(Validator, self).__init__(schema, **kwargs)
         self.model_class = model_class
 
     def validate(self, document, model=None, **kwargs):
 
-        update = kwargs.get('update', False)
+        update = kwargs.get("update", False)
 
         if update is True and model is None:
             raise RuntimeError(
-                'update is set to True but model is None. Provide a SQLAlchemy'
-                ' model instance in order to perform uniqueness validation'
-                ' against the model'
+                "update is set to True but model is None. Provide a SQLAlchemy"
+                " model instance in order to perform uniqueness validation"
+                " against the model"
             )
 
         self.model = model
@@ -262,8 +274,7 @@ class Validator(_Validator):
             model = self.model_class.query.filter_by(**filter).first()
 
             if model and (not self.update or model is not self.model):
-                self._error(
-                    field, f'Must be unique, but \'{value}\' already exist')
+                self._error(field, f"Must be unique, but '{value}' already exist")
 
 
 def get_key_path(key, _map):

@@ -53,6 +53,9 @@ clean-test: ## remove test and coverage artifacts
 lint: ## check style with flake8
 	flake8 setup.py saraki tests
 
+format:
+	black setup.py saraki tests
+
 test: ## run tests quickly with the default Python
 	python -m pytest
 	python -m pytest examples/

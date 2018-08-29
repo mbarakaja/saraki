@@ -7,20 +7,20 @@ from saraki.model import BaseModel, Model
 
 
 class DummyBaseModel(BaseModel):
-    __tablename__ = 'dummy_base_model'
+    __tablename__ = "dummy_base_model"
 
     id = Column(Integer, primary_key=True)
 
 
 class DummyModel(Model):
-    __tablename__ = 'dummy_model'
+    __tablename__ = "dummy_model"
 
     id = Column(Integer, primary_key=True)
 
 
 class Person(Model):
 
-    __tablename__ = 'person'
+    __tablename__ = "person"
 
     id = Column(Integer, primary_key=True)
 
@@ -30,23 +30,19 @@ class Person(Model):
 
     age = Column(Integer, nullable=False)
 
-    def export_data(
-        self,
-        include=['id', 'firstname'],
-        exclude=[]
-    ):
+    def export_data(self, include=["id", "firstname"], exclude=[]):
         return super(Person, self).export_data(include, exclude)
 
 
 class Product(BaseModel):
 
-    __tablename__ = 'product'
+    __tablename__ = "product"
 
     id = Column(Integer, primary_key=True)
 
     name = Column(String(120), nullable=False)
 
-    color = Column(String, default='white')
+    color = Column(String, default="white")
 
     price = Column(Integer, default=0)
 
@@ -59,38 +55,34 @@ class Product(BaseModel):
 
 class Order(BaseModel):
 
-    __tablename__ = 'order'
+    __tablename__ = "order"
 
     id = Column(Integer, primary_key=True)
 
-    customer_id = Column(Integer, ForeignKey('person.id'), nullable=False)
+    customer_id = Column(Integer, ForeignKey("person.id"), nullable=False)
 
-    lines = relationship('OrderLine')
+    lines = relationship("OrderLine")
 
-    customer = relationship('Person', uselist=False)
+    customer = relationship("Person", uselist=False)
 
 
 class OrderLine(Model):
 
-    __tablename__ = 'order_line'
+    __tablename__ = "order_line"
 
     id = Column(Integer, primary_key=True)
 
-    order_id = Column(Integer, ForeignKey('order.id'), nullable=False)
+    order_id = Column(Integer, ForeignKey("order.id"), nullable=False)
 
-    product_id = Column(Integer, ForeignKey('product.id'), nullable=False)
+    product_id = Column(Integer, ForeignKey("product.id"), nullable=False)
 
     unit_price = Column(Integer, nullable=False)
 
     quantity = Column(Integer, default=1, nullable=False)
 
-    product = relationship('Product', uselist=False)
+    product = relationship("Product", uselist=False)
 
-    def export_data(
-        self,
-        include=['id', 'unit_price', 'quantity'],
-        exclude=[]
-    ):
+    def export_data(self, include=["id", "unit_price", "quantity"], exclude=[]):
         return super(OrderLine, self).export_data(include, exclude)
 
 

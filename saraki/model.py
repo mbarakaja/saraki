@@ -9,7 +9,6 @@ BaseModel = database.Model
 
 
 class ModelMixin:
-
     def import_data(self, data):
         return import_into_sqla_object(self, data)
 
@@ -25,7 +24,7 @@ class Model(BaseModel, ModelMixin):
 class Plan(Model):
     """Plans available for your application."""
 
-    __tablename__ = 'plan'
+    __tablename__ = "plan"
 
     #: Primary key
     id = Column(Integer, primary_key=True)
@@ -43,7 +42,7 @@ class Plan(Model):
 class User(Model):
     """Application user accounts."""
 
-    __tablename__ = 'user'
+    __tablename__ = "user"
 
     id = Column(Integer, primary_key=True)
 
@@ -75,20 +74,16 @@ class User(Model):
 
     def import_data(self, data):
 
-        data['canonical_username'] = data['username'].lower()
+        data["canonical_username"] = data["username"].lower()
         super(User, self).import_data(data)
 
-        self.set_password(data['password'])
+        self.set_password(data["password"])
 
-    def export_data(
-        self,
-        include=[],
-        exclude=['id', 'password', 'canonical_username'],
-    ):
+    def export_data(self, include=[], exclude=["id", "password", "canonical_username"]):
         return super(User, self).export_data(include, exclude)
 
     def __str__(self):
-        return f'<User {self.username}>'
+        return f"<User {self.username}>"
 
 
 class Org(Model):
@@ -99,7 +94,7 @@ class Org(Model):
     table.
     """
 
-    __tablename__ = 'org'
+    __tablename__ = "org"
 
     #: Primary Key.
     id = Column(Integer, primary_key=True)
@@ -114,18 +109,18 @@ class Org(Model):
     #: this account not necessarily is the owner of the organization account,
     #: just the user that registered the organization. See the table
     #: :class:`Member` for more information.
-    app_user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+    app_user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
 
     #: Plan selected from the :class:`Plan` table.
-    app_plan_id = Column(Integer, ForeignKey('plan.id'))
+    app_plan_id = Column(Integer, ForeignKey("plan.id"))
 
     #
     # - - - Relationships - - -
     #
 
-    created_by = relationship('User', uselist=False)
+    created_by = relationship("User", uselist=False)
 
-    plan = relationship('Plan', uselist=False)
+    plan = relationship("Plan", uselist=False)
 
 
 class Membership(Model):
@@ -136,18 +131,17 @@ class Membership(Model):
     relationship between the tables :class:`User` and :class:`Org`.
     """
 
-    __tablename__ = 'org_member'
+    __tablename__ = "org_member"
 
     #: The ID of a user account in the table :class:`User`.
-    app_user_id = Column(Integer, ForeignKey('user.id'), primary_key=True)
+    app_user_id = Column(Integer, ForeignKey("user.id"), primary_key=True)
 
     #: The ID of an organization account in the table :class:`Org`.
-    app_org_id = Column(Integer, ForeignKey('org.id'), primary_key=True)
+    app_org_id = Column(Integer, ForeignKey("org.id"), primary_key=True)
 
     #: If this is True, this member is the/an owner of this organization. One
     #: or more members can be owner at the same time.
-    is_owner = Column(Boolean, default=False, server_default='FALSE',
-                      nullable=False)
+    is_owner = Column(Boolean, default=False, server_default="FALSE", nullable=False)
 
     #: Enable or disable a member from an organization.
     enabled = Column(Boolean, default=False, nullable=False)
@@ -156,10 +150,10 @@ class Membership(Model):
     # -- Relationships --
     #
 
-    org = relationship('Org', uselist=False,)
-    user = relationship('User', uselist=False)
+    org = relationship("Org", uselist=False)
+    user = relationship("User", uselist=False)
 
-    def export_data(self, include=[], exclude=['app_org_id', 'app_user_id']):
+    def export_data(self, include=[], exclude=["app_org_id", "app_user_id"]):
         return super(Membership, self).export_data(include, exclude)
 
 
@@ -168,7 +162,7 @@ class Action(Model, ModelMixin):
     update, delete, follow, etc.
     """
 
-    __tablename__ = 'action'
+    __tablename__ = "action"
 
     id = Column(Integer, primary_key=True)
 
@@ -183,7 +177,7 @@ class Action(Model, ModelMixin):
 class Resource(Model, ModelMixin):
     """Application resources."""
 
-    __tablename__ = 'resource'
+    __tablename__ = "resource"
 
     #: Primary Key.
     id = Column(Integer, primary_key=True)
@@ -195,13 +189,13 @@ class Resource(Model, ModelMixin):
     description = Column(Text)
 
     #: Parent resource.
-    parent_id = Column(Integer, ForeignKey('resource.id'))
+    parent_id = Column(Integer, ForeignKey("resource.id"))
 
     #
     # -- Relationships --
     #
 
-    parent = relationship('Resource', uselist=False, remote_side=id)
+    parent = relationship("Resource", uselist=False, remote_side=id)
 
 
 def _persist_actions(actions):

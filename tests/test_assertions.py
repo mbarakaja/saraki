@@ -2,35 +2,27 @@ import pytest
 from assertions import list_is
 
 
-dummy_lst = [{'name': 'Elmer'}, {'name': 'Sam'}]
+dummy_lst = [{"name": "Elmer"}, {"name": "Sam"}]
 
 
 params = (
-    ('lst', 'subset_lst', 'expected'),
+    ("lst", "subset_lst", "expected"),
     [
         ([], [], True),
         ([{}, {}], [{}, {}, {}], True),
         (
-            [{'id': 1, 'name': 'Jon', 'pets': []}, {'id': 2, 'name': 'Sam'}],
-            [{'id': 1, 'pets': []}],
-            True
-        ),
-        (
-            [{'id': 1}],
-            [{'id': 1, 'name': 'Jon'}, {'id': 2, 'name': 'Sam'}],
-            False,
-        ),
-        (
-            [{'id': 1}],
-            [{'id': 1, 'name': 'Elmer'}],
-            False,
-        ),
-        (
-            [{'id': 1, 'name': 'Elmer'}, {'id': 2, 'name': 'Sam'}],
-            [{'id': 1, 'name': 'Elmer'}, {'id': 2, 'name': 'Sam'}],
+            [{"id": 1, "name": "Jon", "pets": []}, {"id": 2, "name": "Sam"}],
+            [{"id": 1, "pets": []}],
             True,
         ),
-        (dummy_lst, dummy_lst, True,),
+        ([{"id": 1}], [{"id": 1, "name": "Jon"}, {"id": 2, "name": "Sam"}], False),
+        ([{"id": 1}], [{"id": 1, "name": "Elmer"}], False),
+        (
+            [{"id": 1, "name": "Elmer"}, {"id": 2, "name": "Sam"}],
+            [{"id": 1, "name": "Elmer"}, {"id": 2, "name": "Sam"}],
+            True,
+        ),
+        (dummy_lst, dummy_lst, True),
     ],
 )
 

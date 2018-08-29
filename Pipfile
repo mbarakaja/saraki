@@ -23,6 +23,7 @@ pytest-randomly = "*"
 watchdog = "*"
 twine = "*"
 braulio = "*"
+black = "*"
 
 [requires]
 python_version = "3.6"
