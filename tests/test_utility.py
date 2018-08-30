@@ -85,24 +85,25 @@ class Test_export_from_sqla_object:
 
         assert len(data) == 3
         assert len(data["lines"]) == 3
-        assert {"id": 1, "quantity": 3, "unit_price": 14} in data["lines"]
-        assert {"id": 2, "quantity": 4, "unit_price": 142} in data["lines"]
-        assert {"id": 3, "quantity": 7, "unit_price": 73} in data["lines"]
+        assert {"product_id": 1, "quantity": 3, "unit_price": 14} in data["lines"]
+        assert {"product_id": 2, "quantity": 4, "unit_price": 142} in data["lines"]
+        assert {"product_id": 3, "quantity": 7, "unit_price": 73} in data["lines"]
 
     def test_loaded_one_to_one_relationship(self, ctx):
 
-        order = OrderLine.query.options(joinedload(OrderLine.product)).get(1)
-        data = export_from_sqla_object(order)
+        order_line = OrderLine.query.options(joinedload(OrderLine.product)).get((1, 2))
+        data = export_from_sqla_object(order_line)
 
-        assert len(data) == 6
-        assert data["id"] == 1
+        assert len(data) == 5
+        assert data["order_id"] == 1
+        assert data["product_id"] == 2
 
         product_data = data["product"]
         assert len(product_data) == 7
-        product_data["id"] = 1
-        product_data["name"] = "Explosive Tennis Balls"
-        product_data["color"] = "white"
-        product_data["price"] = 9
+        assert product_data["id"] == 2
+        assert product_data["name"] == "Binocular"
+        assert product_data["color"] == "black"
+        assert product_data["price"] == 99
 
     def test_explicit_column_inclusion(self, ctx):
 
@@ -156,7 +157,7 @@ class Test_export_from_sqla_object:
         lst = export_from_sqla_object(OrderLine.query.all())
         data = lst[0]
         assert len(data) == 3
-        assert "id" in data
+        assert "product_id" in data
         assert "unit_price" in data
         assert "quantity" in data
 

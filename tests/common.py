@@ -70,11 +70,11 @@ class OrderLine(Model):
 
     __tablename__ = "order_line"
 
-    id = Column(Integer, primary_key=True)
+    order_id = Column(Integer, ForeignKey("order.id"), nullable=False, primary_key=True)
 
-    order_id = Column(Integer, ForeignKey("order.id"), nullable=False)
-
-    product_id = Column(Integer, ForeignKey("product.id"), nullable=False)
+    product_id = Column(
+        Integer, ForeignKey("product.id"), nullable=False, primary_key=True
+    )
 
     unit_price = Column(Integer, nullable=False)
 
@@ -82,7 +82,7 @@ class OrderLine(Model):
 
     product = relationship("Product", uselist=False)
 
-    def export_data(self, include=("id", "unit_price", "quantity"), exclude=()):
+    def export_data(self, include=("product_id", "unit_price", "quantity"), exclude=()):
         return super(OrderLine, self).export_data(include, exclude)
 
 
