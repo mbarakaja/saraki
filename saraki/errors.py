@@ -12,6 +12,7 @@ from .exc import (
     JWTError,
     TokenNotFoundError,
     AuthorizationError,
+    ValidationError,
 )
 
 
@@ -54,3 +55,7 @@ def init_app(app):
     def authorization_error_handler(error):
         message = "Invalid access token for this resource"
         return jsonify({"error": message}), 401
+
+    @app.errorhandler(ValidationError)
+    def validation_error_handler(e):
+        return jsonify({"errors": e.errors}), 400

@@ -1,5 +1,26 @@
 from werkzeug.exceptions import NotFound
+from werkzeug.routing import RequestRedirect, MethodNotAllowed
 from sqlalchemy import event
+
+
+def get_view_function(url, method="GET", app=None):
+    adapter = app.url_map.bind("")
+
+    try:
+        match = adapter.match(url, method=method)
+    except RequestRedirect as e:
+        # recursively match redirects
+        return get_view_function(e.new_url, method)
+    except (MethodNotAllowed, NotFound):
+        # no match
+        return None
+
+    try:
+        # return the view function and arguments
+        return app.view_functions[match[0]], match[1]
+    except KeyError:
+        # no view is associated with the endpoint
+        return None
 
 
 def assert_allowed_methods(path, methods, app):
