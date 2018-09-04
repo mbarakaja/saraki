@@ -1,7 +1,7 @@
 import pytest
 from flask import Flask
 from flask.json import dumps
-from common import Product, OrderLine, Cartoon, login
+from common import OrderLine, Cartoon, login
 
 from saraki.endpoints import add_resource
 from saraki.testing import get_view_function, assert_allowed_methods
