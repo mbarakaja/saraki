@@ -4,8 +4,9 @@ from json import loads as load_json
 
 from saraki import Saraki
 from saraki.model import database, Plan, User, Org, Membership
+from saraki.testing import Savepoint
 
-from common import Person, Product, Order, OrderLine, TransactionManager
+from common import Person, Product, Order, OrderLine, Cartoon
 from assertions import pytest_assertrepr_compare  # noqa: F401
 
 
@@ -59,7 +60,9 @@ def _insert_data(_setup_database):
         "tests/data/user.json"
     ) as users_file, open(
         "tests/data/plan.json"
-    ) as plans_file:
+    ) as plans_file, open(
+        "tests/data/cartoon.json"
+    ) as cartoons_file:
 
         person_ls = load_json(persons_file.read())
         product_ls = load_json(products_file.read())
@@ -67,6 +70,7 @@ def _insert_data(_setup_database):
         order_line_ls = load_json(order_lines_file.read())
         user_ls = load_json(users_file.read())
         plans_ls = load_json(plans_file.read())
+        cartoons_ls = load_json(cartoons_file.read())
 
     with _app.app_context():
         database.session.add_all([Person(**item) for item in person_ls])
@@ -74,6 +78,7 @@ def _insert_data(_setup_database):
         database.session.add_all([Order(**item) for item in order_ls])
         database.session.add_all([OrderLine(**item) for item in order_line_ls])
         database.session.add_all([Plan(**item) for item in plans_ls])
+        database.session.add_all([Cartoon(**item) for item in cartoons_ls])
 
         for u in user_ls:
 
@@ -137,12 +142,12 @@ def data_member(ctx, savepoint, data_org):
 
 @pytest.fixture(scope="session")
 def _trn():
-    """Create a session wide instance of TransactionManager class.
+    """Create a session wide instance of Savepoint class.
 
-    TransactionManager helps create nested database transactions.
+    Savepoint helps create nested database transactions.
     This help rollback any transaction using PostgreSQL savepoints.
     """
-    return TransactionManager(database)
+    return Savepoint(database)
 
 
 @pytest.fixture
@@ -171,7 +176,7 @@ def savepoint(_setup_database, database_conn, _trn, request):
     _trn.start()
 
     def teardown():
-        _trn.close()
+        _trn.end()
 
     request.addfinalizer(teardown)
 
