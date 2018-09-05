@@ -3,6 +3,8 @@ from sqlalchemy.orm import joinedload
 from .auth import require_auth, current_user, current_org
 from .model import database, Plan, User, Org, Membership
 from .utility import generate_schema, json, export_from_sqla_object, Validator
+from saraki.endpoints import add_resource
+
 
 user_schema = generate_schema(User, exclude=["canonical_username", "active"])
 
@@ -28,58 +30,22 @@ def signup_view():
 appbp = Blueprint("app", __name__)
 
 
-app_plan_schema = generate_schema(Plan)
+#
+# Application plans
+# ~~~~~~~~~~~~~~~~~
+#
 
+add_resource(
+    Plan, appbp, "plans", methods={"item": ["GET"], "list": ["GET"]}, secure=False
+)
 
-@appbp.route("/plans", methods=["GET"])
-@json
-def list_plans():
-    return [item.export_data() for item in Plan.query.all()], 200
-
-
-@appbp.route("/plans/<int:id>", methods=["GET"])
-@json
-def get_plan(id):
-    return Plan.query.get_or_404(id)
-
-
-@appbp.route("/plans", methods=["POST"])
-@require_auth("app")
-@json
-def add_plan():
-    data = request.get_json()
-
-    v = Validator(app_plan_schema)
-
-    if v.validate(data) is False:
-        abort(400, v.errors)
-
-    app_plan = Plan()
-    app_plan.import_data(data)
-    database.session.add(app_plan)
-    database.session.commit()
-    return app_plan, 201
-
-
-@appbp.route("/plans/<int:id>", methods=["PUT"])
-@require_auth("app")
-@json
-def edit_plan(id):
-    app_plan = Plan.query.get_or_404(id)
-    app_plan.import_data(request.json)
-    database.session.commit()
-    return app_plan, 200
-
-
-@appbp.route("/plans/<int:id>", methods=["DELETE"])
-@require_auth("app")
-@json
-def delete_plan(id):
-    app_plan = Plan.query.get_or_404(id)
-    database.session.delete(app_plan)
-    database.session.commit()
-    return {}
-
+add_resource(
+    Plan,
+    appbp,
+    "plans",
+    resource_name="app",
+    methods={"item": ["PATCH", "DELETE"], "list": ["POST"]},
+)
 
 """
     User organizations
