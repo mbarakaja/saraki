@@ -92,6 +92,9 @@ def _insert_data(_setup_database):
             user = User(**data)
             database.session.add(user)
 
+        # Insert all registered resources and actions
+        _app.init()
+
         database.session.commit()
 
 

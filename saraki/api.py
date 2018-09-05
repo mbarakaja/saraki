@@ -1,7 +1,7 @@
 from flask import jsonify, request, abort, Blueprint
 from sqlalchemy.orm import joinedload
 from .auth import require_auth, current_user, current_org
-from .model import database, Plan, User, Org, Membership
+from .model import database, Plan, User, Org, Membership, Resource
 from .utility import generate_schema, json, export_from_sqla_object, Validator
 from saraki.endpoints import add_resource
 
@@ -28,6 +28,18 @@ def signup_view():
 
 
 appbp = Blueprint("app", __name__)
+
+
+# Resources
+# ~~~~~~~~~
+
+add_resource(
+    Resource,
+    appbp,
+    "resources",
+    methods={"item": ["GET"], "list": ["GET"]},
+    resource_name="app",
+)
 
 
 #
