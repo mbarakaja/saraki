@@ -1,7 +1,7 @@
 import pytest
 from flask import Flask
 from flask.json import dumps
-from common import OrderLine, Cartoon, login
+from common import Product, OrderLine, Cartoon, login
 
 from saraki.endpoints import add_resource
 from saraki.testing import get_view_function, assert_allowed_methods
@@ -76,6 +76,12 @@ class Test_add_resource:
 
         func = get_view_function("/cartoon/1", method="DELETE", app=app)[0]
         assert func._auth_metadata["resource"] == "film"
+
+    def test_endpoint_with_same_resource_name(self):
+        app = Flask(__name__)
+
+        add_resource(Cartoon, app, resource_name="catalog")
+        add_resource(Product, app, resource_name="catalog")
 
 
 @pytest.mark.usefixtures("data")

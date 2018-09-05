@@ -200,9 +200,10 @@ def add_resource(
     :param resource_name: resource name required in token scope to access this resource.
     """
 
+    # The table name is used to generate flask endpoint names
     table_name = model_class.__tablename__
 
-    # The resource name is the table name
+    # When resource_name is not provided use the name of the table
     resource_name = resource_name or table_name
 
     # Use the table name as default base URL
@@ -229,7 +230,7 @@ def add_resource(
 
     # Resource list
     if "GET" in list_methods:
-        endpoint = f"list_{resource_name}"
+        endpoint = f"list_{table_name}"
         view_func = json(list_view_func)
 
         if secure:
@@ -238,7 +239,7 @@ def add_resource(
         app.add_url_rule(list_rule, endpoint, view_func, defaults=defaults)
 
     if "POST" in list_methods:
-        endpoint = f"add_{resource_name}"
+        endpoint = f"add_{table_name}"
         view_func = json(add_view_func)
 
         if secure:
@@ -255,19 +256,19 @@ def add_resource(
         view_func = require_auth(resource_name)(view_func)
 
     if "GET" in item_methods:
-        endpoint = f"get_{resource_name}"
+        endpoint = f"get_{table_name}"
         app.add_url_rule(
             item_rule, endpoint, view_func, defaults=defaults, methods=["GET"]
         )
 
     if "PATCH" in item_methods:
-        endpoint = f"update_{resource_name}"
+        endpoint = f"update_{table_name}"
         app.add_url_rule(
             item_rule, endpoint, view_func, defaults=defaults, methods=["PATCH"]
         )
 
     if "DELETE" in item_methods:
-        endpoint = f"delete_{resource_name}"
+        endpoint = f"delete_{table_name}"
         app.add_url_rule(
             item_rule, endpoint, view_func, defaults=defaults, methods=["DELETE"]
         )
