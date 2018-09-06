@@ -7,19 +7,16 @@ from .model import database
 from .auth import Auth
 
 
-auth = Auth()
-
-
 class Saraki(Flask):
-    def __init__(self, import_name, auth=auth, db=database, **kargs):
+    def __init__(self, import_name, auth=Auth, db=database, **kargs):
 
         super(Saraki, self).__init__(import_name, **kargs)
 
         self.config.from_object(_default_config)
         self.add_default_endpoints()
 
-        if isinstance(auth, Auth):
-            self.auth = auth
+        if auth:
+            self.auth = auth() if callable(auth) else auth
             self.auth.init_app(self)
             self.register_blueprint(appbp)
 
