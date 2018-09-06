@@ -6,7 +6,7 @@ from json import loads, dumps
 from assertions import list_is
 from cerberus import Validator
 from sqlalchemy.orm import joinedload
-from saraki.model import User, Org, Membership, Resource
+from saraki.model import User, Org, Membership, Resource, Action
 from saraki.utility import generate_schema
 from saraki.api import ORG_SCHEMA
 from saraki.testing import assert_allowed_methods
@@ -249,6 +249,33 @@ class TestResource:
 
         token = login("Coy0te", scope={"app": "read"})
         rv = client.get(f"/resources/{_id}", headers={"Authorization": token})
+
+        assert rv.status_code == 200
+
+        data = rv.get_json()
+        assert data["id"] == _id
+
+
+@pytest.mark.usefixtures("data")
+class TestAction:
+    def test_allowed_methods(self, app):
+        assert_allowed_methods("/actions", ["GET"], app)
+        assert_allowed_methods("/actions/1", ["GET"], app)
+
+    def test_list_resource(self, client):
+        token = login("Coy0te", scope={"app": "read"})
+        rv = client.get("/actions", headers={"Authorization": token})
+
+        assert rv.status_code == 200
+
+        data = rv.get_json()
+        assert len(data) > 0
+
+    def test_get_resource(self, client):
+        _id = Action.query.first().id
+
+        token = login("Coy0te", scope={"app": "read"})
+        rv = client.get(f"/actions/{_id}", headers={"Authorization": token})
 
         assert rv.status_code == 200
 
