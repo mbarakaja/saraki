@@ -5,8 +5,8 @@ from werkzeug.exceptions import UnsupportedMediaType, BadRequest
 from flask import make_response
 from common import Product, Order, OrderLine, DummyBaseModel, DummyModel
 from saraki.utility import (
+    ExportData,
     import_into_sqla_object,
-    export_from_sqla_object,
     json,
     Validator,
     get_key_path,
@@ -25,24 +25,26 @@ def test_import_into_sqla_object():
     assert product.price == 99
 
 
+@pytest.mark.wip
 @pytest.mark.usefixtures("data")
-class Test_export_from_sqla_object:
+class TestExportData:
     def test_with_invalid_arguments(self):
+        message = "Pass a valid SQLAlchemy mapped class instance"
+        export_data = ExportData()
+
         class NonMappedModel(object):
             pass
 
-        message = "Pass a valid SQLAlchemy mapped class instance"
+        with pytest.raises(ValueError, match=message):
+            export_data(NonMappedModel())
 
         with pytest.raises(ValueError, match=message):
-            export_from_sqla_object(NonMappedModel())
-
-        with pytest.raises(ValueError, match=message):
-            export_from_sqla_object(1)
+            export_data(1)
 
     def test_non_persisted_untouched_object(self):
+        export_data = ExportData()
 
-        data = export_from_sqla_object(Product())
-
+        data = export_data(Product())
         assert len(data) == 7
 
         for prop in ["id", "name", "created_at", "updated_at"]:
@@ -53,10 +55,9 @@ class Test_export_from_sqla_object:
         assert data["enabled"] is False
 
     def test_non_persisted_touched_object(self):
+        export_data = ExportData()
 
-        data = export_from_sqla_object(
-            Product(id=9, name="TNT", price=799, color="red")
-        )
+        data = export_data(Product(id=9, name="TNT", price=799, color="red"))
 
         assert len(data) == 7
         assert data["id"] == 9
@@ -68,9 +69,9 @@ class Test_export_from_sqla_object:
         assert data["updated_at"] is None
 
     def test_persisted_object(self, ctx):
-
+        export_data = ExportData()
         product = Product.query.get(1)
-        data = export_from_sqla_object(product)
+        data = export_data(product)
 
         assert len(data) == 7
         data["id"] = 1
@@ -79,9 +80,10 @@ class Test_export_from_sqla_object:
         data["price"] = 9
 
     def test_loaded_one_to_many_relationship(self, ctx):
+        export_data = ExportData()
 
         order = Order.query.options(joinedload(Order.lines)).get(1)
-        data = export_from_sqla_object(order)
+        data = export_data(order)
 
         assert len(data) == 3
         assert len(data["lines"]) == 3
@@ -90,9 +92,10 @@ class Test_export_from_sqla_object:
         assert {"product_id": 3, "quantity": 7, "unit_price": 73} in data["lines"]
 
     def test_loaded_one_to_one_relationship(self, ctx):
+        export_data = ExportData()
 
         order_line = OrderLine.query.options(joinedload(OrderLine.product)).get((1, 2))
-        data = export_from_sqla_object(order_line)
+        data = export_data(order_line)
 
         assert len(data) == 5
         assert data["order_id"] == 1
@@ -106,24 +109,27 @@ class Test_export_from_sqla_object:
         assert product_data["price"] == 99
 
     def test_explicit_column_inclusion(self, ctx):
+        export_data = ExportData()
 
         product = Product.query.get(1)
-        data = export_from_sqla_object(product, include=["id", "name"])
+        data = export_data(product, include=["id", "name"])
 
         assert len(data) == 2
         assert data["id"] == 1
         assert data["name"] == "Explosive Tennis Balls"
 
     def test_explicit_column_exclusion(self, ctx):
+        export_data = ExportData()
 
         product = Product.query.get(1)
-        data = export_from_sqla_object(product, exclude=["id", "name"])
+        data = export_data(product, exclude=["id", "name"])
 
         assert len(data) == 5
         assert "id" not in data
         assert "name" not in data
 
     def test_explicit_loaded_relationship_exclusion(self, ctx):
+        export_data = ExportData()
 
         order = (
             Order.query.options(joinedload(Order.lines))
@@ -131,39 +137,61 @@ class Test_export_from_sqla_object:
             .get(1)
         )
 
-        data = export_from_sqla_object(order, exclude=["lines"])
+        data = export_data(order, exclude=["lines"])
 
         assert "lines" not in data
         assert "customer" in data
 
     def test_include_and_exclude_argument(self, ctx):
-
+        export_data = ExportData()
         product = Product.query.get(1)
-        data = export_from_sqla_object(
-            product, include=["id", "name", "price"], exclude=["id"]
-        )
+
+        data = export_data(product, include=["id", "name", "price"], exclude=["id"])
 
         assert len(data) == 2
         assert "id" not in data
 
+    def test_exclude_property(self, ctx):
+        export_data = ExportData(exclude=["id"])
+        product = Product.query.get(1)
+
+        data = export_data(product)
+
+        assert "id" not in data
+
+    def test_exclude_property_and_include_parameter(self, ctx):
+        export_data = ExportData(exclude=["id"])
+        product = Product.query.get(1)
+
+        data = export_data(product, include=["id"])
+
+        assert "id" not in data
+
     def test_list_of_sqlalchemy_objects(self, ctx):
-        lst = export_from_sqla_object(Order.query.all())
+        export_data = ExportData()
+
+        lst = export_data(Order.query.all())
 
         assert type(lst) == list
         assert len(lst) == 2
         assert {"id": 1, "customer_id": 1} in lst
 
     def test_list_of_sqlalchemy_objects_with_export_method(self, ctx):
-        lst = export_from_sqla_object(OrderLine.query.all())
+        export_data = ExportData()
+
+        lst = export_data(OrderLine.query.all())
         data = lst[0]
+
         assert len(data) == 3
         assert "product_id" in data
         assert "unit_price" in data
         assert "quantity" in data
 
     def test_loaded_one_to_one_relationship_with_export_data_method(self, ctx):
+        export_data = ExportData()
+
         order_line = Order.query.options(joinedload(Order.customer)).get(1)
-        data = export_from_sqla_object(order_line, include=["id"])
+        data = export_data(order_line, include=["id"])
 
         assert len(data) == 2
 

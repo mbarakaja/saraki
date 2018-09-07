@@ -37,68 +37,89 @@ def _get_column_default(c):
     return d.arg if isinstance(getattr(d, "arg", None), (int, str, bool)) else None
 
 
-def export_from_sqla_object(model, include=(), exclude=()):
-    """Return a dictionary base on the object columns/values. If a list of
-    column names is passed, the output will contains just those columns
-    that appears in the list.
-
-    If the current object is not persisted in the database, the default
-    value of the column is used if provided in the model definition
-    like::
-
-        active = Column(Boolean, default=False)
-
+class ExportData:
+    """Creates a callable object that convert SQLAlchemy model instances
+    to dictionary.
     """
 
-    if isinstance(model, (list, InstrumentedList)):
-        has_export_data = len(model) > 0 and hasattr(model[0], "export_data")
+    def __init__(self, exclude=()):
+        self.exclude = tuple(exclude)
 
-        if has_export_data:
-            return [item.export_data() for item in model]
-        else:
-            return [export_from_sqla_object(item, include, exclude) for item in model]
+    def __call__(self, obj, include=(), exclude=()):
+        """Converts SQLAlchemy models into dict objects. It can take a single
+        model or a list of models.
 
-    try:
-        persisted = inspect(model).persistent
-    except NoInspectionAvailable as e:
-        raise ValueError("Pass a valid SQLAlchemy mapped class instance")
+        By default, all columns are included in the output, unless a list of
+        column names are provided to the parameters include or exclude. The
+        latter has precedence over the former. Finally, the columns that appear
+        in the excluded property will be excluded, regardless of the values that
+        the parameters include and exclude have.
 
-    data = {}
-    columns = model.__class__.__table__.columns
+        If the model is not persisted in the database, the default values of the
+        columns are used if they exist in the class definition. From the example
+        below, the value False will be used for the column active::
 
-    for c in columns:
-        name = c.name
+            active = Column(Boolean, default=False)
 
-        if (not include or name in include) and name not in exclude:
-            column_value = getattr(model, name)
+        :param obj: A instance or a list of SQLAlchemy model instances.
+        :param include: tuple, list or set.
+        :param exclude: tuple, list or set.
+        """
 
-            data[name] = (
-                column_value
-                if persisted
-                else _get_column_default(c)
-                if column_value is None
-                else column_value
-            )
+        exclude = tuple(exclude) + self.exclude
 
-    if persisted is True:
-        unloaded_relationships = inspect(model).unloaded
-        relationship_keys = [
-            relationship.key
-            for relationship in model.__class__.__mapper__.relationships
-        ]
+        if isinstance(obj, (list, InstrumentedList)):
+            has_export_data = len(obj) > 0 and hasattr(obj[0], "export_data")
 
-        for key in relationship_keys:
-            if key not in unloaded_relationships and key not in exclude:
-                rproperty = getattr(model, key)
-                has_export_data = hasattr(rproperty, "export_data")
-                data[key] = None
+            if has_export_data:
+                return [item.export_data() for item in obj]
+            else:
+                return [export_from_sqla_object(item, include, exclude) for item in obj]
 
-                if has_export_data:
-                    data[key] = rproperty.export_data()
-                elif rproperty:
-                    data[key] = export_from_sqla_object(rproperty)
+        try:
+            persisted = inspect(obj).persistent
+        except NoInspectionAvailable as e:
+            raise ValueError("Pass a valid SQLAlchemy mapped class instance")
 
-    return data
+        data = {}
+        columns = obj.__class__.__table__.columns
+
+        for c in columns:
+            name = c.name
+
+            if (not include or name in include) and name not in exclude:
+                column_value = getattr(obj, name)
+
+                data[name] = (
+                    column_value
+                    if persisted
+                    else _get_column_default(c)
+                    if column_value is None
+                    else column_value
+                )
+
+        if persisted is True:
+            unloaded_relationships = inspect(obj).unloaded
+            relationship_keys = [
+                relationship.key
+                for relationship in obj.__class__.__mapper__.relationships
+            ]
+
+            for key in relationship_keys:
+                if key not in unloaded_relationships and key not in exclude:
+                    rproperty = getattr(obj, key)
+                    has_export_data = hasattr(rproperty, "export_data")
+                    data[key] = None
+
+                    if has_export_data:
+                        data[key] = rproperty.export_data()
+                    elif rproperty:
+                        data[key] = export_from_sqla_object(rproperty)
+
+        return data
+
+
+export_from_sqla_object = ExportData(exclude=("org_id",))
 
 
 def generate_schema(model_class, include=(), exclude=()):

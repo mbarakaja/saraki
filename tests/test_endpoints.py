@@ -287,6 +287,7 @@ class TestOrgResource:
 
         assert rv.status_code == 200
         assert data[0]["id"] == _id
+        assert "org_id" not in data[0]
 
         # Request to R.R. Inc endpoint
         token = login("R0adRunner", "rrinc", scope={"todo": ["read"]})
@@ -317,6 +318,7 @@ class TestOrgResource:
         assert rv.status_code == 200
         assert data["id"] == _id
         assert data["task"] == "Stop being lazy"
+        assert "org_id" not in data
 
     def test_add_resource(self, app, client):
         add_resource(Todo, app)
@@ -329,10 +331,11 @@ class TestOrgResource:
             content_type="application/json",
             headers={"Authorization": token},
         )
+        data = rv.get_json()
 
         assert rv.status_code == 201
+        assert "org_id" not in data
 
-        data = rv.get_json()
         org = Org.query.filter_by(orgname="acme").one()
         todo = Todo.query.get(data["id"])
 
@@ -363,8 +366,10 @@ class TestOrgResource:
             content_type="application/json",
             headers={"Authorization": token},
         )
+        data = rv.get_json()
 
         assert rv.status_code == 200
+        assert "org_id" not in data
 
         todo = Todo.query.filter_by(id=_id).one()
         assert todo.task == "Do something"
