@@ -98,6 +98,17 @@ class Cartoon(Model):
     nickname = Column(String(80), unique=True)
 
 
+class Todo(Model):
+
+    __tablename__ = "todo"
+
+    id = Column(Integer, primary_key=True)
+
+    org_id = Column(Integer, ForeignKey("org.id"), nullable=False)
+
+    task = Column(String(200), nullable=False)
+
+
 def login(username, orgname=None, scope=None):
     iat = datetime.utcnow()
     exp = iat + timedelta(seconds=6000)

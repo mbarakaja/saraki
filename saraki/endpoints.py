@@ -5,7 +5,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from saraki.model import database
 from saraki.exc import ValidationError
-from saraki.auth import require_auth
+from saraki.auth import require_auth, current_org
 from saraki.utility import (
     json,
     generate_schema,
@@ -23,15 +23,25 @@ def _import_data(model, data):
         import_data(model, data)
 
 
-def list_view_func(model_class, ident_prop, primary_key, schema, **kargs):
+def list_view_func(model_class, ident_prop, primary_key, schema, is_org, **kargs):
+    filters = {"org_id": current_org.id} if is_org else {}
+
     if hasattr(model_class, "export_data"):
-        return [item.export_data() for item in model_class.query.all()]
+        return [
+            item.export_data() for item in model_class.query.filter_by(**filters).all()
+        ]
     else:
-        return [export_data(item) for item in model_class.query.all()]
+        return [
+            export_data(item) for item in model_class.query.filter_by(**filters).all()
+        ]
 
 
-def add_view_func(model_class, ident_prop, primary_key, schema, **kargs):
+def add_view_func(model_class, ident_prop, primary_key, schema, is_org, **kargs):
     payload = request.get_json()
+
+    if is_org:
+        payload["org_id"] = current_org.id
+
     v = Validator(schema)
 
     if v.validate(payload) is False:
@@ -47,24 +57,18 @@ def add_view_func(model_class, ident_prop, primary_key, schema, **kargs):
     return model, 201
 
 
-def item_view(model_class, ident_prop, primary_key, schema, **kargs):
+def item_view(model_class, ident_prop, primary_key, schema, is_org, **kargs):
     """Generic view function to handle operations on single resource items."""
 
-    if ident_prop == primary_key:
-        # The identity can be an scalar or a tuple for composite primary key.
-        if len(ident_prop) > 1:
-            ident = tuple(kargs.get(prop) for prop in ident_prop)
-        else:
-            ident = kargs.get(ident_prop[0])
+    ident = {prop: kargs.get(prop) for prop in ident_prop}
 
-        model = model_class.query.get_or_404(ident)
-    else:
-        ident = {prop: kargs.get(prop) for prop in ident_prop}
+    if is_org:
+        ident["org_id"] = current_org.id
 
-        try:
-            model = model_class.query.filter_by(**ident).one()
-        except NoResultFound:
-            abort(404)
+    try:
+        model = model_class.query.filter_by(**ident).one()
+    except NoResultFound:
+        abort(404)
 
     if request.method == "GET":
         return model
@@ -91,8 +95,8 @@ def item_view(model_class, ident_prop, primary_key, schema, **kargs):
 type_mapping = {int: "int", str: "string"}
 
 
-def _generate_route_rules(base_url, model_class, ident_prop):
-    list_rule = f"/{base_url}"
+def _generate_route_rules(base_url, model_class, ident_prop, is_org=False):
+    list_rule = f"/orgs/<aud:orgname>/{base_url}" if is_org else f"/{base_url}"
     item_rule = f"{list_rule}/"
 
     columns = [getattr(model_class, column_name) for column_name in ident_prop]
@@ -189,7 +193,15 @@ def add_resource(
     decorator. Once again, the table name is used for the resource parameter of
     require_auth, unless the resource_name parameter are provided.
 
-    To disable this behavior pass ``secure=False``. Once
+    To disable this behavior pass ``secure=False``.
+
+    Model classes with a property (column) named ``org_id`` will be considered
+    an organization resource and will generate an organization endpoint. For
+    instance, supposing the model class Product has the property org_id the
+    generated route rules will be::
+
+        /orgs/<aud:orgname>/products
+        /orgs/<aud:orgname>/products/<int:id>
 
     :param model_class: SQLAlchemy model class.
     :param app: Flask or Blueprint instance.
@@ -199,6 +211,8 @@ def add_resource(
     :param secure: Boolean flag to secure a resource using require_auth.
     :param resource_name: resource name required in token scope to access this resource.
     """
+
+    is_org = hasattr(model_class, "org_id")
 
     # The table name is used to generate flask endpoint names
     table_name = model_class.__tablename__
@@ -214,7 +228,7 @@ def add_resource(
     primary_key = tuple(column.name for column in primary_key)
     ident = (ident,) if ident else primary_key
 
-    list_rule, item_rule = _generate_route_rules(base_url, model_class, ident)
+    list_rule, item_rule = _generate_route_rules(base_url, model_class, ident, is_org)
 
     methods = methods or {}
 
@@ -226,6 +240,7 @@ def add_resource(
         "model_class": model_class,
         "ident_prop": ident,
         "primary_key": primary_key,
+        "is_org": is_org,
     }
 
     # Resource list
