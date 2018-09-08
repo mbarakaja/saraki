@@ -109,10 +109,10 @@ class Org(Model):
     #: this account not necessarily is the owner of the organization account,
     #: just the user that registered the organization. See the table
     #: :class:`Member` for more information.
-    app_user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
 
     #: Plan selected from the :class:`Plan` table.
-    app_plan_id = Column(Integer, ForeignKey("plan.id"))
+    plan_id = Column(Integer, ForeignKey("plan.id"))
 
     #
     # - - - Relationships - - -
@@ -134,10 +134,10 @@ class Membership(Model):
     __tablename__ = "org_member"
 
     #: The ID of a user account in the table :class:`User`.
-    app_user_id = Column(Integer, ForeignKey("user.id"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("user.id"), primary_key=True)
 
     #: The ID of an organization account in the table :class:`Org`.
-    app_org_id = Column(Integer, ForeignKey("org.id"), primary_key=True)
+    org_id = Column(Integer, ForeignKey("org.id"), primary_key=True)
 
     #: If this is True, this member is the/an owner of this organization. One
     #: or more members can be owner at the same time.
@@ -153,7 +153,7 @@ class Membership(Model):
     org = relationship("Org", uselist=False)
     user = relationship("User", uselist=False)
 
-    def export_data(self, include=(), exclude=("app_org_id", "app_user_id")):
+    def export_data(self, include=(), exclude=("org_id", "user_id")):
         return super(Membership, self).export_data(include, exclude)
 
 

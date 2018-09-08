@@ -97,9 +97,7 @@ def _verify_orgname(orgname):
 
 
 def _verify_member(user, org):
-    member = Membership.query.filter_by(
-        app_user_id=user.id, app_org_id=org.id
-    ).one_or_none()
+    member = Membership.query.filter_by(user_id=user.id, org_id=org.id).one_or_none()
 
     if member is None:
         raise InvalidMemberError(f"{user.username} is not a member of {org.orgname}")
@@ -157,9 +155,7 @@ def _generate_jwt_payload(user, org=None):
     if org:
         payload["aud"] = org.orgname
 
-        member = Membership.query.filter_by(
-            app_user_id=user.id, app_org_id=org.id
-        ).one()
+        member = Membership.query.filter_by(user_id=user.id, org_id=org.id).one()
 
         if member.is_owner:
             payload.update({"scp": {"org": ["manage"]}})

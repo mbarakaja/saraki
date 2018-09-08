@@ -80,7 +80,7 @@ def test_add_org_endpoint(req_payload, status_code, client):
         )
 
         member = Membership.query.filter_by(
-            app_org_id=org.id, app_user_id=org.created_by.id
+            org_id=org.id, user_id=org.created_by.id
         ).one()
 
         assert org.orgname == "choco"

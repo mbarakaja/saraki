@@ -76,12 +76,12 @@ add_resource(
     ~~~~~~~~~~~~~~~~~~
 """
 
-ORG_SCHEMA = generate_schema(Org, exclude=["id", "app_user_id"])
+ORG_SCHEMA = generate_schema(Org, exclude=["id", "user_id"])
 ORG_SCHEMA["orgname"]["unique"] = True
 
 
-def _add_member(app_org, app_user, extra_data=None):
-    data = {"app_user_id": app_user.id, "app_org_id": app_org.id}
+def _add_member(org, user, extra_data=None):
+    data = {"user_id": user.id, "org_id": org.id}
 
     if extra_data:
         data.update(extra_data)
@@ -101,9 +101,9 @@ def list_user_organizations(username):
     owned by the user and those where the user is a member.
     """
 
-    app_user_id = current_user.id
+    user_id = current_user.id
 
-    memberships = Membership.query.filter_by(app_user_id=app_user_id).all()
+    memberships = Membership.query.filter_by(user_id=user_id).all()
 
     org_list = [export_from_sqla_object(m.org) for m in memberships]
 
@@ -127,31 +127,31 @@ def add_organization_account(username):
     if v.validate(data) is False:
         abort(400, v.errors)
 
-    app_user = current_user._get_current_object()
+    user = current_user._get_current_object()
 
-    data["app_user_id"] = current_user.id
+    data["user_id"] = current_user.id
 
-    app_org = Org()
-    app_org.import_data(data)
+    org = Org()
+    org.import_data(data)
 
-    database.session.add(app_org)
+    database.session.add(org)
     database.session.flush()
 
-    _add_member(app_org, app_user, {"is_owner": True})
+    _add_member(org, user, {"is_owner": True})
 
     database.session.commit()
 
-    return app_org, 201
+    return org, 201
 
 
 @appbp.route("/orgs/<aud:orgname>/members")
 @require_auth("org")
 @json
 def list_members(orgname):
-    app_org_id = current_org.id
+    org_id = current_org.id
     member_list = (
         Membership.query.options(joinedload("user"))
-        .filter_by(app_org_id=app_org_id)
+        .filter_by(org_id=org_id)
         .all()
     )
 
@@ -167,7 +167,7 @@ def member_username_validator(field, value, error):
         return
 
     member = Membership.query.filter_by(
-        app_user_id=user.id, app_org_id=current_org.id
+        user_id=user.id, org_id=current_org.id
     ).one_or_none()
 
     if member:
@@ -197,14 +197,14 @@ def add_member(orgname):
     username = data["username"]
     user = User.query.filter_by(username=username).one()
 
-    member = Membership(app_user_id=user.id, app_org_id=current_org.id)
+    member = Membership(user_id=user.id, org_id=current_org.id)
 
     database.session.add(member)
     database.session.commit()
 
     member = (
         Membership.query.options(joinedload(Membership.user))
-        .filter_by(app_user_id=user.id, app_org_id=current_org.id)
+        .filter_by(user_id=user.id, org_id=current_org.id)
         .one()
     )
 
