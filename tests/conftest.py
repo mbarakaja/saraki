@@ -1,12 +1,22 @@
 import os
 import pytest
-from json import loads as load_json
 
 from saraki import Saraki
-from saraki.model import database, Plan, User, Org, Membership
+from saraki.model import database
 from saraki.testing import Savepoint
 
-from common import Person, Product, Order, OrderLine, Cartoon
+from data import (
+    insert_cartoons,
+    insert_persons,
+    insert_products,
+    insert_orders,
+    insert_plans,
+    insert_users,
+    insert_orgs,
+    insert_members,
+)
+
+
 from assertions import pytest_assertrepr_compare  # noqa: F401
 
 
@@ -42,55 +52,19 @@ def _setup_database(request):
 
 @pytest.fixture(scope="session")
 def _insert_data(_setup_database):
-    """Put the database in a known state by inserting
-    predefined data.
-
-    This is a session scoped fixture.
-    """
+    """Put the database in a known state by inserting predefined data."""
 
     _app = Saraki(__name__, db=None)
     _app.config["SQLALCHEMY_DATABASE_URI"] = os.environ["TEST_DATABASE_URI"]
     database.init_app(_app)
 
-    with open("tests/data/product.json", "r") as products_file, open(
-        "tests/data/order.json", "r"
-    ) as orders_file, open("tests/data/order_line.json", "r") as order_lines_file, open(
-        "tests/data/person.json", "r"
-    ) as persons_file, open(
-        "tests/data/user.json"
-    ) as users_file, open(
-        "tests/data/plan.json"
-    ) as plans_file, open(
-        "tests/data/cartoon.json"
-    ) as cartoons_file:
-
-        person_ls = load_json(persons_file.read())
-        product_ls = load_json(products_file.read())
-        order_ls = load_json(orders_file.read())
-        order_line_ls = load_json(order_lines_file.read())
-        user_ls = load_json(users_file.read())
-        plans_ls = load_json(plans_file.read())
-        cartoons_ls = load_json(cartoons_file.read())
-
     with _app.app_context():
-        database.session.add_all([Person(**item) for item in person_ls])
-        database.session.add_all([Product(**item) for item in product_ls])
-        database.session.add_all([Order(**item) for item in order_ls])
-        database.session.add_all([OrderLine(**item) for item in order_line_ls])
-        database.session.add_all([Plan(**item) for item in plans_ls])
-        database.session.add_all([Cartoon(**item) for item in cartoons_ls])
-
-        for u in user_ls:
-
-            data = {
-                "username": u["username"],
-                "canonical_username": u["username"].lower(),
-                "password": u["hashed_password"],
-                "email": u["email"],
-            }
-
-            user = User(**data)
-            database.session.add(user)
+        insert_persons()
+        insert_products()
+        insert_orders()
+        insert_cartoons()
+        insert_plans()
+        insert_users()
 
         # Insert all registered resources and actions
         _app.init()
@@ -105,42 +79,12 @@ def data(_insert_data, database_conn):
 
 @pytest.fixture
 def data_org(ctx, savepoint):
-
-    lst = [
-        {"username": "Coy0te", "orgname": "acme", "name": "Acme Corporation"},
-        {"username": "R0adRunner", "orgname": "rrinc", "name": "RR Inc"},
-    ]
-
-    for data in lst:
-        user = User.query.filter_by(username=data["username"]).one()
-
-        org = Org(orgname=data["orgname"], name=data["name"], created_by=user)
-        database.session.add(org)
-
-        member = Membership(user=user, org=org, is_owner=True)
-
-        database.session.add(member)
-
-    database.session.commit()
+    insert_orgs()
 
 
 @pytest.fixture
 def data_member(ctx, savepoint, data_org):
-
-    lst = [
-        {"username": "R0adRunner", "orgname": "acme", "is_owner": False},
-        {"username": "Y0seSam", "orgname": "acme", "is_owner": False},
-    ]
-
-    for data in lst:
-        user = User.query.filter_by(username=data["username"]).one()
-        org = Org.query.filter_by(orgname=data["orgname"]).one()
-
-        member = Membership(user=user, org=org, is_owner=data["is_owner"])
-
-        database.session.add(member)
-
-    database.session.commit()
+    insert_members()
 
 
 @pytest.fixture(scope="session")

@@ -1,6 +1,4 @@
-import jwt
 import pytest
-from datetime import datetime, timedelta
 from unittest.mock import patch, MagicMock
 from json import loads, dumps
 from assertions import list_is
@@ -11,25 +9,12 @@ from saraki.utility import generate_schema
 from saraki.api import ORG_SCHEMA
 from saraki.testing import assert_allowed_methods
 
-
-@pytest.mark.usefixtures("client")
-def login(username, orgname=None, scope=None):
-    iat = datetime.utcnow()
-    exp = iat + timedelta(seconds=6000)
-    payload = {"iss": "acme.local", "sub": username, "iat": iat, "exp": exp}
-
-    if orgname:
-        payload.update({"aud": orgname, "scp": {"org": ["manage"]}})
-
-    if scope:
-        payload.update({"scp": scope})
-
-    token = jwt.encode(payload, "secret").decode()
-
-    return f"JWT {token}"
+from common import login
 
 
-@pytest.mark.usefixtures("data")
+pytestmark = pytest.mark.usefixtures("data")
+
+
 @patch("saraki.api.Validator")
 def test_add_org_endpoint_data_validation(MockValidator, client):
 
@@ -37,10 +22,10 @@ def test_add_org_endpoint_data_validation(MockValidator, client):
     MockValidator.return_value = v
     v.validate.return_value = False
     v.errors = {}
-    access_token = login("Coy0te")
+    access_token = login("coyote")
 
     rv = client.post(
-        "/users/Coy0te/orgs",
+        "/users/coyote/orgs",
         data=dumps({"prop": "value"}),
         content_type="application/json",
         headers={"Authorization": access_token},
@@ -52,7 +37,7 @@ def test_add_org_endpoint_data_validation(MockValidator, client):
     v.validate.assert_called_once_with({"prop": "value"})
 
 
-@pytest.mark.usefixtures("data", "data_org")
+@pytest.mark.usefixtures("data_org")
 @pytest.mark.parametrize(
     "req_payload, status_code",
     [
@@ -64,10 +49,10 @@ def test_add_org_endpoint_data_validation(MockValidator, client):
 def test_add_org_endpoint(req_payload, status_code, client):
 
     rv = client.post(
-        "/users/Coy0te/orgs",
+        "/users/coyote/orgs",
         data=dumps(req_payload),
         content_type="application/json",
-        headers={"Authorization": login("Coy0te")},
+        headers={"Authorization": login("coyote")},
     )
 
     assert rv.status_code == status_code
@@ -85,13 +70,13 @@ def test_add_org_endpoint(req_payload, status_code, client):
 
         assert org.orgname == "choco"
         assert org.name == "The Chocolate Factory"
-        assert org.created_by.username == "Coy0te"
+        assert org.created_by.username == "coyote"
         assert member.is_owner is True
 
 
-@pytest.mark.usefixtures("data", "data_org")
+@pytest.mark.usefixtures("data_org")
 @pytest.mark.parametrize(
-    "username, expected_lst", [("Coy0te", [{"orgname": "acme"}]), ("Y0seSam", [])]
+    "username, expected_lst", [("coyote", [{"orgname": "acme"}]), ("YoseSam", [])]
 )
 def test_list_user_orgs_endpoint(client, username, expected_lst):
 
@@ -119,9 +104,9 @@ member_response_schema = {
 }
 
 
-@pytest.mark.usefixtures("data", "data_member")
+@pytest.mark.usefixtures("data_member")
 def test_list_members(client):
-    token = login("Coy0te", "acme", scope={"org": ["read"]})
+    token = login("coyote", "acme", scope={"org": ["read"]})
 
     rv = client.get("/orgs/acme/members", headers={"Authorization": token})
 
@@ -135,17 +120,17 @@ def test_list_members(client):
     assert v.validate(data[0]), v.errors
 
 
-@pytest.mark.usefixtures("data", "data_org")
+@pytest.mark.usefixtures("data_org")
 @pytest.mark.parametrize(
     "username, status, error",
     [
         ("unknown", 400, "User unknown does not exist"),
-        ("Coy0te", 400, "Coy0te is already a member of acme"),
+        ("coyote", 400, "coyote is already a member of acme"),
     ],
 )
 def test_add_member_with_invalid_user(client, username, status, error):
     data = {"username": username}
-    token = login("Coy0te", "acme")
+    token = login("coyote", "acme")
 
     rv = client.post(
         "/orgs/acme/members",
@@ -160,10 +145,10 @@ def test_add_member_with_invalid_user(client, username, status, error):
     assert error in body["error"]["username"]
 
 
-@pytest.mark.usefixtures("data", "data_org")
+@pytest.mark.usefixtures("data_org")
 def test_add_member(client):
-    data = {"username": "R0adRunner"}
-    token = login("Coy0te", "acme")
+    data = {"username": "RoadRunner"}
+    token = login("coyote", "acme")
 
     rv = client.post(
         "/orgs/acme/members",
@@ -179,7 +164,6 @@ def test_add_member(client):
     assert v.validate(data), v.errors
 
 
-@pytest.mark.usefixtures("data")
 def test_list_plans(client):
 
     rv = client.get("/plans")
@@ -201,7 +185,7 @@ def test_get_plan(client):
 
 @pytest.mark.usefixtures("data")
 def test_add_plan(client):
-    token = login("Coy0te", scope={"app": ["write"]})
+    token = login("coyote", scope={"app": ["write"]})
     data = {"name": "Enterprise", "amount_of_members": 500, "price": 1000}
 
     rv = client.post(
@@ -216,9 +200,8 @@ def test_add_plan(client):
     data = loads(rv.data)
 
 
-@pytest.mark.usefixtures("data")
 def test_delete_plan(client):
-    token = login("Coy0te", scope={"app": ["delete"]})
+    token = login("coyote", scope={"app": ["delete"]})
     url = "/plans/1"
 
     rv = client.delete(url, headers={"Authorization": token})
@@ -227,14 +210,13 @@ def test_delete_plan(client):
     assert client.get(url).status_code == 404
 
 
-@pytest.mark.usefixtures("data")
 class TestResource:
     def test_allowed_methods(self, app):
         assert_allowed_methods("/resources", ["GET"], app)
         assert_allowed_methods("/resources/1", ["GET"], app)
 
     def test_list_resource(self, client):
-        token = login("Coy0te", scope={"app": "read"})
+        token = login("coyote", scope={"app": "read"})
         rv = client.get("/resources", headers={"Authorization": token})
 
         assert rv.status_code == 200
@@ -247,7 +229,7 @@ class TestResource:
 
         _id = Resource.query.first().id
 
-        token = login("Coy0te", scope={"app": "read"})
+        token = login("coyote", scope={"app": "read"})
         rv = client.get(f"/resources/{_id}", headers={"Authorization": token})
 
         assert rv.status_code == 200
@@ -256,14 +238,13 @@ class TestResource:
         assert data["id"] == _id
 
 
-@pytest.mark.usefixtures("data")
 class TestAction:
     def test_allowed_methods(self, app):
         assert_allowed_methods("/actions", ["GET"], app)
         assert_allowed_methods("/actions/1", ["GET"], app)
 
     def test_list_resource(self, client):
-        token = login("Coy0te", scope={"app": "read"})
+        token = login("coyote", scope={"app": "read"})
         rv = client.get("/actions", headers={"Authorization": token})
 
         assert rv.status_code == 200
@@ -274,7 +255,7 @@ class TestAction:
     def test_get_resource(self, client):
         _id = Action.query.first().id
 
-        token = login("Coy0te", scope={"app": "read"})
+        token = login("coyote", scope={"app": "read"})
         rv = client.get(f"/actions/{_id}", headers={"Authorization": token})
 
         assert rv.status_code == 200

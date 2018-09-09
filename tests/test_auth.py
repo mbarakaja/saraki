@@ -42,7 +42,7 @@ from saraki.model import User, Org
 parametrize = pytest.mark.parametrize
 
 
-def getpayload(scp=None, sub="Coy0te", aud=None):
+def getpayload(scp=None, sub="coyote", aud=None):
     iat = datetime.utcnow()
     exp = iat + timedelta(seconds=6000)
     payload = {"iss": "acme.local", "sub": sub, "iat": iat, "exp": exp}
@@ -80,9 +80,9 @@ def _get_org(orgname):
 @pytest.mark.usefixtures("data")
 class Test_verify_username(object):
     def test_different_case_variations(self, ctx):
-        assert _verify_username("Coy0te").username == "Coy0te"
-        assert _verify_username("coy0te").username == "Coy0te"
-        assert _verify_username("COY0TE").username == "Coy0te"
+        assert _verify_username("coyote").username == "coyote"
+        assert _verify_username("Coyote").username == "coyote"
+        assert _verify_username("COYOTE").username == "coyote"
 
     def test_unregistered_username(self, ctx):
         error_msg = 'Username "unknown" is not registered'
@@ -108,7 +108,7 @@ class Test_verify_orgname:
 class Test_verify_member:
     def test_valid_member(self, ctx):
 
-        user = _verify_username("Coy0te")
+        user = _verify_username("coyote")
         org = _verify_orgname("acme")
 
         member = _verify_member(user, org)
@@ -117,10 +117,10 @@ class Test_verify_member:
 
     def test_invali_member(self, ctx):
 
-        user = _verify_username("Coy0te")
+        user = _verify_username("coyote")
         org = _verify_orgname("rrinc")
 
-        error_msg = "Coy0te is not a member of rrinc"
+        error_msg = "coyote is not a member of rrinc"
 
         with pytest.raises(InvalidMemberError, match=error_msg):
             _verify_member(user, org)
@@ -236,14 +236,14 @@ class Test_generate_jwt_payload(object):
 
     @pytest.mark.usefixtures("ctx")
     def test_sub_claim(self):
-        user = _get_user(username="Coy0te")
+        user = _get_user(username="coyote")
         payload = _generate_jwt_payload(user)
 
-        assert payload["sub"] == "Coy0te"
+        assert payload["sub"] == "coyote"
 
     @pytest.mark.usefixtures("data", "data_org")
     def test_aud_claim(self, app):
-        user = User.query.filter_by(username="Coy0te").one()
+        user = User.query.filter_by(username="coyote").one()
         org = Org.query.filter_by(orgname="acme").one()
 
         with app.app_context():
@@ -279,7 +279,7 @@ class Test_generate_jwt_payload(object):
     @pytest.mark.usefixtures("data", "data_org")
     def test_scp_claim_for_organization_owners(self):
 
-        user = User.query.filter_by(username="Coy0te").one()
+        user = User.query.filter_by(username="coyote").one()
         org = Org.query.filter_by(orgname="acme").one()
 
         payload = _generate_jwt_payload(user, org)
@@ -297,7 +297,7 @@ class Test_encode_jwt(object):
         token = _encode_jwt(
             {
                 "iss": "acme.local",
-                "sub": "Coy0te",
+                "sub": "coyote",
                 "iat": iat,
                 "exp": exp,
                 "custom": "custom claim value",
@@ -307,7 +307,7 @@ class Test_encode_jwt(object):
         _payload = jwt.decode(token, verify=False)
 
         assert _payload["iss"] == "acme.local"
-        assert _payload["sub"] == "Coy0te"
+        assert _payload["sub"] == "coyote"
         assert _payload["iat"] == timegm(iat.utctimetuple())
         assert _payload["exp"] == timegm(exp.utctimetuple())
         assert _payload["custom"] == "custom claim value"
@@ -321,7 +321,7 @@ class Test_encode_jwt(object):
 
         with app.app_context():
             with pytest.raises(ValueError, match=error):
-                _encode_jwt({"sub": "Coy0te", "iat": iat, "exp": exp})
+                _encode_jwt({"sub": "coyote", "iat": iat, "exp": exp})
 
     @pytest.mark.usefixtures("ctx")
     def test_with_various_missing_required_claims(self):
@@ -438,7 +438,7 @@ class Test_decode_jwt(object):
         with app.app_context():
             decoded_payload = _decode_jwt(token)
 
-        assert decoded_payload["sub"] == "Coy0te"
+        assert decoded_payload["sub"] == "coyote"
 
     def test_with_valid_token(self, app, _payload):
         app.config["SERVER_NAME"] = "acme.local"
@@ -450,7 +450,7 @@ class Test_decode_jwt(object):
             decoded_payload = _decode_jwt(token)
 
         assert decoded_payload["iss"] == "acme.local"
-        assert decoded_payload["sub"] == "Coy0te"
+        assert decoded_payload["sub"] == "coyote"
 
     def test_with_valid_token_with_aud_claim(self, app):
         app.config["SERVER_NAME"] = "acme.local"
@@ -463,7 +463,7 @@ class Test_decode_jwt(object):
             decoded_payload = _decode_jwt(token)
 
         assert decoded_payload["iss"] == "acme.local"
-        assert decoded_payload["sub"] == "Coy0te"
+        assert decoded_payload["sub"] == "coyote"
         assert decoded_payload["aud"] == "acme"
 
 
@@ -473,7 +473,7 @@ class Test_is_authorized(object):
         def private_info(username):
             return "Private information"
 
-        _payload["sub"] = "Coy0te"
+        _payload["sub"] = "coyote"
 
         with app.test_request_context("/elmer/private-info"):
             assert _is_authorized(_payload) is False
@@ -642,15 +642,15 @@ class Test_validate_request(object):
     ):
 
         mocked_get_request_jwt.return_value = "a.nice.token"
-        mocked_jwt_decode_handler.return_value = {"sub": "Coy0te"}
+        mocked_jwt_decode_handler.return_value = {"sub": "coyote"}
 
         with request_ctx("/"):
             _validate_request("stock", "read")
 
         mocked_get_request_jwt.assert_called_once()
         mocked_jwt_decode_handler.assert_called_once_with("a.nice.token")
-        mocked_is_authorized.assert_called_once_with({"sub": "Coy0te"}, "stock", "read")
-        mocked_verify_username.assert_called_once_with("Coy0te")
+        mocked_is_authorized.assert_called_once_with({"sub": "coyote"}, "stock", "read")
+        mocked_verify_username.assert_called_once_with("coyote")
 
     @patch("saraki.auth._is_authorized")
     def test_with_unauthorized_token(self, mocked_is_authorized, app):
@@ -705,14 +705,14 @@ class Test_validate_request(object):
         def index():
             pass
 
-        payload = getpayload(sub="Coy0te")
+        payload = getpayload(sub="coyote")
 
         token = jwt.encode(payload, app.config["SECRET_KEY"]).decode()
         headers = {"Authorization": f"JWT {token}"}
 
         with app.test_request_context("/", headers=headers):
             _validate_request()
-            assert current_user.username == "Coy0te"
+            assert current_user.username == "coyote"
 
         assert current_user._get_current_object() is None
 
@@ -722,7 +722,7 @@ class Test_validate_request(object):
         def index():
             pass
 
-        payload = getpayload(sub="Coy0te", aud="acme")
+        payload = getpayload(sub="coyote", aud="acme")
 
         token = jwt.encode(payload, app.config["SECRET_KEY"]).decode()
         headers = {"Authorization": f"JWT {token}"}
@@ -747,13 +747,13 @@ class Test_authenticate_with_password(object):
     def test_with_wrong_password(self, ctx):
 
         with pytest.raises(InvalidPasswordError, match="Invalid password"):
-            _authenticate_with_password("Coy0te", "wrongpassword")
+            _authenticate_with_password("coyote", "wrongpassword")
 
     @pytest.mark.usefixtures("ctx")
     def test_with_valid_username_and_password(self):
-        identity = _authenticate_with_password("Coy0te", "12345")
+        identity = _authenticate_with_password("coyote", "12345")
 
-        assert identity.username == "Coy0te"
+        assert identity.username == "coyote"
 
 
 @pytest.mark.usefixtures("data")
@@ -781,7 +781,7 @@ class Test_authenticate_with_token(object):
         with app.app_context():
             user = _authenticate_with_token(token)
 
-        assert user.username == "Coy0te"
+        assert user.username == "coyote"
 
 
 class Test_authenticate(object):
@@ -801,7 +801,7 @@ class Test_authenticate(object):
 
     def test_request_without_password(self, request_ctx):
 
-        body = dumps({"username": "Coy0te"})
+        body = dumps({"username": "coyote"})
 
         with request_ctx("/", data=body, content_type="application/json"):
             with pytest.raises(BadRequest):
@@ -819,7 +819,7 @@ class Test_authenticate(object):
     @pytest.mark.usefixtures("data", "data_org")
     def test_request_passing_registered_orgname(self, request_ctx):
 
-        body = dumps({"username": "Coy0te", "password": "12345"})
+        body = dumps({"username": "coyote", "password": "12345"})
 
         with request_ctx("/", data=body, content_type="application/json"):
             rv = _authenticate("acme")
@@ -838,8 +838,8 @@ class TestAuthenticationRequest(object):
             (None),
             ({}),
             ({"password": "12345"}),
-            ({"username": "Coy0te"}),
-            ({"username": "Coy0te", "password": "wrongpassword"}),
+            ({"username": "coyote"}),
+            ({"username": "coyote", "password": "wrongpassword"}),
             ({"username": "unknown", "password": "123456"}),
         ],
         ids=[
@@ -861,7 +861,7 @@ class TestAuthenticationRequest(object):
 
     def test_request_with_valid_credentials(self, client):
 
-        body = {"username": "Coy0te", "password": "12345"}
+        body = {"username": "coyote", "password": "12345"}
 
         rv = client.post("/auth", data=dumps(body), content_type="application/json")
 
@@ -869,7 +869,7 @@ class TestAuthenticationRequest(object):
         token = loads(rv.data)["access_token"]
         payload = jwt.decode(token, verify=False)
 
-        assert payload["sub"] == "Coy0te"
+        assert payload["sub"] == "coyote"
 
     def test_request_with_valid_token(self, app, _payload):
         token = jwt.encode(
@@ -886,7 +886,7 @@ class TestAuthenticationRequest(object):
         token = loads(rv.data)["access_token"]
         payload = jwt.decode(token, verify=False)
 
-        assert payload["sub"] == "Coy0te"
+        assert payload["sub"] == "coyote"
 
     @pytest.mark.usefixtures("data", "data_org")
     @parametrize(
@@ -895,8 +895,8 @@ class TestAuthenticationRequest(object):
             (None),
             ({}),
             ({"password": "12345"}),
-            ({"username": "Coy0te"}),
-            ({"username": "Coy0te", "password": "wrongpassword"}),
+            ({"username": "coyote"}),
+            ({"username": "coyote", "password": "wrongpassword"}),
             ({"username": "unknown", "password": "123456"}),
             ({"username": "R0adRunner", "password": "password"}),
         ],
@@ -934,7 +934,7 @@ class TestAuthenticationRequest(object):
     @pytest.mark.usefixtures("data", "data_org")
     @parametrize(
         "payload, expected",
-        [(getpayload(sub="R0adRunner"), 400), (getpayload(sub="Coy0te"), 200)],
+        [(getpayload(sub="R0adRunner"), 400), (getpayload(sub="coyote"), 200)],
         ids=["Not a member", "Owner"],
     )
     def test_org_auth_request_using_valid_tokens(self, app, payload, expected):
@@ -955,7 +955,7 @@ class TestAuthenticationRequest(object):
             token = loads(rv.data)["access_token"]
             payload = jwt.decode(token, verify=False)
 
-            assert payload["sub"] == "Coy0te"
+            assert payload["sub"] == "coyote"
             assert payload["aud"] == "acme"
 
 
@@ -1110,7 +1110,7 @@ class TestEndpoint(object):
         [
             (None, 401),
             (getpayload(sub="unknown"), 401),
-            (getpayload(sub="Coy0te"), 200),
+            (getpayload(sub="coyote"), 200),
         ],
     )
     def test_route_without_sub_variable_rule(self, app, payload, expected):
@@ -1138,7 +1138,7 @@ class TestEndpoint(object):
             (None, 401),
             (getpayload(sub="unknown"), 401),
             (getpayload(sub="R0adRunner"), 401),
-            (getpayload(sub="Coy0te"), 200),
+            (getpayload(sub="coyote"), 200),
         ],
     )
     def test_route_with_sub_variable_rule(self, app, payload, expected):
@@ -1159,7 +1159,7 @@ class TestEndpoint(object):
 
             headers["Authorization"] = f"JWT {token.decode()}"
 
-        rv = client.get("/Coy0te/my-movies", headers=headers)
+        rv = client.get("/coyote/my-movies", headers=headers)
         assert rv.status_code == expected
 
     @pytest.mark.usefixtures("data", "data_org")
@@ -1167,8 +1167,8 @@ class TestEndpoint(object):
         "payload, expected",
         [
             (None, 401),
-            (getpayload(sub="Coy0te", aud="unknown"), 401),
-            (getpayload(sub="Coy0te", aud="acme"), 200),
+            (getpayload(sub="coyote", aud="unknown"), 401),
+            (getpayload(sub="coyote", aud="acme"), 200),
         ],
     )
     def test_route_with_aud_variable_rule(self, app, payload, expected):

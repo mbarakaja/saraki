@@ -1,6 +1,0 @@
-[
-    {"order_id": 1, "product_id": 1, "quantity": 3, "unit_price": 14},
-    {"order_id": 1, "product_id": 2, "quantity": 4, "unit_price": 142},
-    {"order_id": 1, "product_id": 3, "quantity": 7, "unit_price": 73},
-    {"order_id": 2, "product_id": 1, "quantity": 2, "unit_price": 21}
-]

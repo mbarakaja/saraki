@@ -231,35 +231,35 @@ class TestDeleteResourceItem:
 class TestResourceAuthorization:
     def test_get_resource_list(self, app, client):
         add_resource(Cartoon, app)
-        token = login("coy0te", scope={"cartoon": ["read"]})
+        token = login("coyote", scope={"cartoon": ["read"]})
 
         rv = client.get("/cartoon", headers={"Authorization": token})
         assert rv.status_code != 401
 
     def test_get_resource_item(self, app, client):
         add_resource(Cartoon, app)
-        token = login("coy0te", scope={"cartoon": ["read"]})
+        token = login("coyote", scope={"cartoon": ["read"]})
 
         rv = client.get("/cartoon/1", headers={"Authorization": token})
         assert rv.status_code != 401
 
     def test_add_resource_item(self, app, client):
         add_resource(Cartoon, app)
-        token = login("coy0te", scope={"cartoon": ["write"]})
+        token = login("coyote", scope={"cartoon": ["write"]})
 
         rv = client.post("/cartoon", headers={"Authorization": token})
         assert rv.status_code != 401
 
     def test_update_resource_item(self, app, client):
         add_resource(Cartoon, app)
-        token = login("coy0te", scope={"cartoon": ["write"]})
+        token = login("coyote", scope={"cartoon": ["write"]})
 
         rv = client.post("/cartoon", headers={"Authorization": token})
         assert rv.status_code != 401
 
     def test_delete_resource_item(self, app, client):
         add_resource(Cartoon, app)
-        token = login("coy0te", scope={"cartoon": ["delete"]})
+        token = login("coyote", scope={"cartoon": ["delete"]})
 
         rv = client.delete("/cartoon", headers={"Authorization": token})
         assert rv.status_code != 401
@@ -281,7 +281,7 @@ class TestOrgResource:
         add_resource(Todo, app)
 
         # Request to Acme endpoint
-        token = login("coy0te", "acme", scope={"todo": ["read"]})
+        token = login("coyote", "acme", scope={"todo": ["read"]})
         rv = client.get(f"/orgs/acme/todo", headers={"Authorization": token})
         data = rv.get_json()
 
@@ -290,7 +290,7 @@ class TestOrgResource:
         assert "org_id" not in data[0]
 
         # Request to R.R. Inc endpoint
-        token = login("R0adRunner", "rrinc", scope={"todo": ["read"]})
+        token = login("RoadRunner", "rrinc", scope={"todo": ["read"]})
         rv = client.get(f"/orgs/rrinc/todo", headers={"Authorization": token})
         data = rv.get_json()
 
@@ -302,7 +302,7 @@ class TestOrgResource:
         add_resource(Todo, app)
 
         # Request to R.R. Inc endpoint
-        token = login("R0adRunner", "rrinc", scope={"todo": ["read"]})
+        token = login("RoadRunner", "rrinc", scope={"todo": ["read"]})
         rv = client.get(f"/orgs/rrinc/todo/{_id}", headers={"Authorization": token})
 
         assert rv.status_code == 404, (
@@ -311,7 +311,7 @@ class TestOrgResource:
         )
 
         # Request to Acme endpoint
-        token = login("coy0te", "acme", scope={"todo": ["read"]})
+        token = login("coyote", "acme", scope={"todo": ["read"]})
         rv = client.get(f"/orgs/acme/todo/{_id}", headers={"Authorization": token})
         data = rv.get_json()
 
@@ -323,7 +323,7 @@ class TestOrgResource:
     def test_add_resource(self, app, client):
         add_resource(Todo, app)
 
-        token = login("coy0te", "acme", scope={"todo": ["write"]})
+        token = login("coyote", "acme", scope={"todo": ["write"]})
 
         rv = client.post(
             "/orgs/acme/todo",
@@ -346,7 +346,7 @@ class TestOrgResource:
         add_resource(Todo, app)
 
         # Request to R.R. Inc endpoint with the same id
-        token = login("R0adRunner", "rrinc", scope={"todo": ["write"]})
+        token = login("RoadRunner", "rrinc", scope={"todo": ["write"]})
         rv = client.patch(
             f"/orgs/rrinc/todo/{_id}",
             data=dumps({"task": "Do something"}),
@@ -359,7 +359,7 @@ class TestOrgResource:
         )
 
         # Request to Acme endpoint
-        token = login("coy0te", "acme", scope={"todo": ["write"]})
+        token = login("coyote", "acme", scope={"todo": ["write"]})
         rv = client.patch(
             f"/orgs/acme/todo/{_id}",
             data=dumps({"task": "Do something"}),
@@ -379,7 +379,7 @@ class TestOrgResource:
         add_resource(Todo, app)
 
         # Request to R.R. Inc.
-        token = login("R0adRunner", "rrinc", scope={"todo": ["delete"]})
+        token = login("RoadRunner", "rrinc", scope={"todo": ["delete"]})
         headers = {"Authorization": token}
         rv = client.delete(f"/orgs/rrinc/todo/{_id}", headers=headers)
 
@@ -389,7 +389,7 @@ class TestOrgResource:
         )
 
         # Request to Acme
-        token = login("coy0te", "acme", scope={"todo": ["delete"]})
+        token = login("coyote", "acme", scope={"todo": ["delete"]})
         headers = {"Authorization": token}
         rv = client.delete(f"/orgs/acme/todo/{_id}", headers=headers)
 
