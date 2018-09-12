@@ -109,7 +109,7 @@ class Savepoint(object):
         # Begin a non-ORM transaction
         root_transaction = connection.begin()
 
-        options = dict(bind=connection)
+        options = dict(bind=self.database.engine)
         session = self.database.create_scoped_session(options=options)
 
         self.database.session = session

@@ -10,10 +10,14 @@ from data import (
     insert_persons,
     insert_products,
     insert_orders,
+    insert_actions,
+    insert_resources,
     insert_plans,
     insert_users,
     insert_orgs,
     insert_members,
+    insert_roles,
+    insert_member_roles,
 )
 
 
@@ -59,6 +63,12 @@ def _insert_data(_setup_database):
     database.init_app(_app)
 
     with _app.app_context():
+        insert_actions()
+
+    with _app.app_context():
+        insert_resources()
+
+    with _app.app_context():
         insert_persons()
         insert_products()
         insert_orders()
@@ -85,6 +95,16 @@ def data_org(ctx, savepoint):
 @pytest.fixture
 def data_member(ctx, savepoint, data_org):
     insert_members()
+
+
+@pytest.fixture
+def data_role(ctx, savepoint, data_org):
+    insert_roles()
+
+
+@pytest.fixture
+def data_member_role(ctx, savepoint, data_member, data_role):
+    insert_member_roles()
 
 
 @pytest.fixture(scope="session")

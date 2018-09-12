@@ -1,5 +1,14 @@
 from passlib.hash import bcrypt_sha256
-from sqlalchemy import Column, ForeignKey, Integer, String, Boolean, Text
+from sqlalchemy import (
+    Column,
+    ForeignKey,
+    Integer,
+    String,
+    Boolean,
+    Text,
+    UniqueConstraint,
+    ForeignKeyConstraint,
+)
 from sqlalchemy.orm import relationship
 from flask_sqlalchemy import SQLAlchemy
 from saraki.utility import import_into_sqla_object, export_from_sqla_object
@@ -234,3 +243,164 @@ def _persist_resources(resources, parent=None):
 
         if value:
             _persist_resources(value, resource)
+
+
+class Ability(Model, ModelMixin):
+    """An ability represents the capacity to perform an action (create, read,
+    update, delete) on a resource/module/service of an application. In other
+    words is an action/resource pair.
+
+    This table is used to define those pairs, give them a name and a useful
+    description.
+    """
+
+    __tablename__ = "ability"
+
+    #: Foreign key. References to the column :attr:`~Action.id` of the table
+    #: :class:`Action`.
+    action_id = Column(Integer, ForeignKey("action.id"), primary_key=True)
+
+    #: Foreign key. References to the column :attr:`~Resource.id` of the table
+    #: :class:`Resource`.
+    resource_id = Column(Integer, ForeignKey("resource.id"), primary_key=True)
+
+    #: A name for the ability. For instance. Create Products.
+    name = Column(String(80), nullable=False, unique=True)
+
+    #: A long text that describes what this ability does.
+    description = Column(Text)
+
+
+def _persist_abilities():
+    """This function generates **abilities** (action/resource pair) and inserts
+    them into the database.
+
+    Note that this doesn't commit the current session.
+    """
+
+    persisted = [(item.action_id, item.resource_id) for item in Ability.query.all()]
+
+    actions = Action.query.all()
+    resources = Resource.query.all()
+
+    for resource in resources:
+        for action in actions:
+            if (action.id, resource.id) not in persisted:
+
+                ability = Ability(
+                    name=f"{action.name}:{resource.name}",
+                    action_id=action.id,
+                    resource_id=resource.id,
+                )
+                database.session.add(ability)
+
+
+class Role(Model):
+    """A Role is a set of **abilities** that can be assigned to organization
+    members, for example, Seller, Cashier, Driver, Manager, etc.
+
+    This table holds all roles of all organizations accounts, determining the
+    organization that owns the role by the :class:`Org` identifier in the
+    column :attr:`org_id`.
+
+    Since the roles of all organizations reside in this table, the column
+    :attr:`name` can have repeated values. But a role name must be unique
+    in each organization.
+    """
+
+    __tablename__ = "role"
+
+    #: Primary Key.
+    id = Column(Integer, primary_key=True)
+
+    #: A name for the paper, Cashier for example.
+    name = Column(String(80), nullable=False)
+
+    #: A long text that describes what this role does.
+    description = Column(Text, nullable=False)
+
+    #: The :attr:`~Org.id` of the organization account to which this role belongs.
+    org_id = Column(Integer, ForeignKey("org.id"))
+
+    #
+    # -- Relationships --
+    #
+
+    abilities = relationship("RoleAbility", passive_deletes=True)
+
+    __table_args__ = (
+        # MemberRole has a composite foreign key referencing those columns.
+        UniqueConstraint(id, org_id),
+        # The name must be unique to each organization.
+        UniqueConstraint(name, org_id),
+    )
+
+
+class RoleAbility(Model, ModelMixin):
+
+    __tablename__ = "role_ability"
+
+    role_id = Column(
+        Integer, ForeignKey("role.id", ondelete="CASCADE"), primary_key=True
+    )
+
+    action_id = Column(Integer, nullable=False, primary_key=True)
+
+    resource_id = Column(Integer, nullable=False, primary_key=True)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            [action_id, resource_id], [Ability.action_id, Ability.resource_id]
+        ),
+    )
+
+    #
+    # -- Relationships --
+    #
+
+    ability = relationship("Ability", uselist=False)
+
+
+class MemberRole(Model, ModelMixin):
+    """All the roles that a user has in an organization.
+
+    This table have two composite foreign keys:
+
+    * (:attr:`org_id`, :attr:`user_id`) references to
+      :class:`Membership` (:attr:`~Membership.org_id`, :attr:`~Membership.user_id`).
+    * (:attr:`org_id`, :attr:`role_id`) references to
+      :class:`Role` (:attr:`~Role.org_id`, :attr:`~Role.user_id`).
+
+    Those two composite foreign keys ensure that the user to which a role is
+    assigned indeed is a member of the organization.
+    """
+
+    __tablename__ = "member_role"
+
+    #: Foreign key. Must be present in the tables :class:`Membership`
+    #: and :class:`Role`.
+    org_id = Column(Integer, nullable=False, primary_key=True)
+
+    #: Foreign key with :attr:`~Membership.user_id` from the table
+    #: :class:`Membership`.
+    user_id = Column(Integer, nullable=False, primary_key=True)
+
+    #: Foreign key. :attr:`Role.id` from the table :class:`Role`.
+    role_id = Column(Integer, nullable=False, primary_key=True)
+
+    #
+    # -- Relationships --
+    #
+
+    role = relationship("Role", uselist=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            [user_id, org_id],
+            [Membership.user_id, Membership.org_id],
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            [role_id, org_id], [Role.id, Role.org_id], ondelete="CASCADE"
+        ),
+    )

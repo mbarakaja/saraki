@@ -12,8 +12,15 @@ from flask import request, current_app, jsonify, abort, _request_ctx_stack
 from werkzeug.routing import BaseConverter
 from werkzeug.local import LocalProxy
 
-from .model import User, Org, Membership, _persist_actions, _persist_resources
 from .utility import generate_schema, get_key_path
+from .model import (
+    User,
+    Org,
+    Membership,
+    _persist_actions,
+    _persist_resources,
+    _persist_abilities,
+)
 from .exc import (
     NotFoundCredentialError,
     InvalidUserError,
@@ -392,6 +399,7 @@ class Auth:
         self._actions = ["manage"]
         self._persist_actions_func = _persist_actions
         self._persist_resources_func = _persist_resources
+        self._persist_abilities_func = _persist_abilities
 
         if app:
             self.init_app(app)
@@ -488,7 +496,14 @@ class Auth:
         self._persist_resources_func = f
         return f
 
+    def persist_abilities(self, f):
+        """Registers a function called to persist abilities in a database."""
+
+        self._persist_resources_func = f
+        return f
+
     def persist_data(self):
         self._collect_metadata()
         self._persist_actions_func(self.actions)
         self._persist_resources_func(self.resources)
+        self._persist_abilities_func()

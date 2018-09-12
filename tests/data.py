@@ -1,5 +1,15 @@
-from saraki.model import database, Plan, User, Org, Membership
-from common import Person, Product, Order, OrderLine, Cartoon
+from saraki.model import (
+    database,
+    Plan,
+    User,
+    Org,
+    Membership,
+    Action,
+    Role,
+    Resource,
+    MemberRole,
+)
+from common import Person, Product, Order, OrderLine, Cartoon, reset_secuence
 
 
 def insert_persons():
@@ -46,6 +56,33 @@ def insert_cartoons():
     ]
 
     database.session.add_all([Cartoon(**item) for item in lst])
+
+
+def insert_actions():
+    reset_secuence(Action)
+
+    lst = [
+        {"name": "manage", "description": "manage description"},
+        {"name": "read", "description": "read description"},
+        {"name": "write", "description": "write description"},
+        {"name": "delete", "description": "delete description"},
+    ]
+
+    database.session.add_all([Action(**item) for item in lst])
+    database.session.commit()
+
+
+def insert_resources():
+    reset_secuence(Resource)
+
+    lst = [
+        {"name": "app", "description": "app description"},
+        {"name": "org", "description": "org description"},
+        {"name": "inventory", "description": "inventory description"},
+    ]
+
+    database.session.add_all([Resource(**item) for item in lst])
+    database.session.commit()
 
 
 def insert_plans():
@@ -122,17 +159,56 @@ def insert_orgs():
 
 
 def insert_members():
+    acme = Org.query.filter_by(orgname="acme").one()
+    rr = Org.query.filter_by(orgname="rrinc").one()
+
+    yosesam = User.query.filter_by(username="YoseSam").one()
+    runner = User.query.filter_by(username="RoadRunner").one()
+
     lst = [
-        {"username": "RoadRunner", "orgname": "acme", "is_owner": False},
-        {"username": "YoseSam", "orgname": "acme", "is_owner": False},
+        {"user_id": runner.id, "org_id": acme.id, "is_owner": False},
+        {"user_id": yosesam.id, "org_id": acme.id, "is_owner": False},
+        {"user_id": yosesam.id, "org_id": rr.id, "is_owner": False},
     ]
 
-    for data in lst:
-        user = User.query.filter_by(username=data["username"]).one()
-        org = Org.query.filter_by(orgname=data["orgname"]).one()
+    database.session.add_all([Membership(**data) for data in lst])
+    database.session.commit()
 
-        member = Membership(user=user, org=org, is_owner=data["is_owner"])
 
-        database.session.add(member)
+def insert_roles():
+    reset_secuence(Role)
 
+    acme = Org.query.filter_by(orgname="acme").one()
+    rr = Org.query.filter_by(orgname="rrinc").one()
+
+    lst = [
+        # Acme
+        {"name": "role 1", "description": "description 1", "org_id": acme.id},
+        {"name": "role 2", "description": "description 2", "org_id": acme.id},
+        {"name": "role 3", "description": "description 3", "org_id": acme.id},
+        # R.R. Inc
+        {"name": "role 4", "description": "description 4", "org_id": rr.id},
+        {"name": "role 5", "description": "description 5", "org_id": rr.id},
+        {"name": "role 6", "description": "description 6", "org_id": rr.id},
+        {"name": "role 7", "description": "description 7", "org_id": rr.id},
+    ]
+
+    database.session.add_all([Role(**data) for data in lst])
+    database.session.commit()
+
+
+def insert_member_roles():
+    runner = User.query.filter_by(username="RoadRunner").one()
+    yosesam = User.query.filter_by(username="YoseSam").one()
+
+    acme = Org.query.filter_by(orgname="acme").one()
+    rr = Org.query.filter_by(orgname="rrinc").one()
+
+    lst = [
+        {"role_id": 1, "user_id": runner.id, "org_id": acme.id},
+        {"role_id": 2, "user_id": yosesam.id, "org_id": acme.id},
+        {"role_id": 6, "user_id": yosesam.id, "org_id": rr.id},
+    ]
+
+    database.session.add_all([MemberRole(**data) for data in lst])
     database.session.commit()
