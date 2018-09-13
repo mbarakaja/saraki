@@ -6,6 +6,7 @@ from saraki.model import (
     Membership,
     Action,
     Role,
+    RoleAbility,
     Resource,
     MemberRole,
 )
@@ -193,7 +194,17 @@ def insert_roles():
         {"name": "role 7", "description": "description 7", "org_id": rr.id},
     ]
 
-    database.session.add_all([Role(**data) for data in lst])
+    roles = [Role(**data) for data in lst]
+
+    database.session.add_all(roles)
+
+    role_abilities = [
+        {"role": roles[0], "resource_id": 2, "action_id": 2},
+        {"role": roles[0], "resource_id": 2, "action_id": 3},
+    ]
+
+    database.session.add_all([RoleAbility(**data) for data in role_abilities])
+
     database.session.commit()
 
 

@@ -1,5 +1,13 @@
 import pytest
-from saraki.model import Resource, Action, _persist_actions, _persist_resources
+from saraki.model import (
+    User,
+    Org,
+    Resource,
+    Action,
+    _persist_actions,
+    _persist_resources,
+    get_member_privileges,
+)
 
 
 class Test_persist_actions:
@@ -82,3 +90,32 @@ class Test_persist_resources:
         assert resources["product"].parent is None
         assert resources["catalog"].parent is resources["product"]
         assert resources["descontinued"].parent is resources["product"]
+
+
+@pytest.mark.usefixtures("data", "data_member_role")
+class Test_get_member_privileges:
+    def test_when_member_is_owner(self, ctx):
+        user = User.query.filter_by(canonical_username="coyote").one()
+        org = Org.query.filter_by(orgname="acme").one()
+
+        privileges = get_member_privileges(org, user)
+
+        assert privileges == {"org": ["manage"]}
+
+    def test_member_without_privileges(self, ctx):
+
+        user = User.query.filter_by(canonical_username="yosesam").one()
+        org = Org.query.filter_by(orgname="acme").one()
+
+        privileges = get_member_privileges(org, user)
+
+        assert privileges == {}
+
+    def test_member_with_privileges(self, ctx):
+
+        user = User.query.filter_by(canonical_username="roadrunner").one()
+        org = Org.query.filter_by(orgname="acme").one()
+
+        privileges = get_member_privileges(org, user)
+
+        assert privileges == {"org": ["read", "write"]}

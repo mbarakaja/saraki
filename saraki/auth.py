@@ -20,6 +20,7 @@ from .model import (
     _persist_actions,
     _persist_resources,
     _persist_abilities,
+    get_member_privileges,
 )
 from .exc import (
     NotFoundCredentialError,
@@ -161,11 +162,7 @@ def _generate_jwt_payload(user, org=None):
 
     if org:
         payload["aud"] = org.orgname
-
-        member = Membership.query.filter_by(user_id=user.id, org_id=org.id).one()
-
-        if member.is_owner:
-            payload.update({"scp": {"org": ["manage"]}})
+        payload.update({"scp": get_member_privileges(org, user)})
 
     payload.update({"iat": iat, "exp": exp, "sub": user.username})
 

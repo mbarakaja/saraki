@@ -9,7 +9,7 @@ from sqlalchemy import (
     UniqueConstraint,
     ForeignKeyConstraint,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, aliased
 from flask_sqlalchemy import SQLAlchemy
 from saraki.utility import import_into_sqla_object, export_from_sqla_object
 
@@ -360,6 +360,8 @@ class RoleAbility(Model, ModelMixin):
 
     ability = relationship("Ability", uselist=False)
 
+    role = relationship("Role", uselist=False)
+
 
 class MemberRole(Model, ModelMixin):
     """All the roles that a user has in an organization.
@@ -404,3 +406,50 @@ class MemberRole(Model, ModelMixin):
             [role_id, org_id], [Role.id, Role.org_id], ondelete="CASCADE"
         ),
     )
+
+
+def get_member_privileges(org, user):
+    member = Membership.query.filter_by(user_id=user.id, org_id=org.id).one()
+
+    if member.is_owner:
+        return {"org": ["manage"]}
+
+    query = database.session.query
+
+    # Get all roles from a specific member
+    roles_subquery = (
+        query(MemberRole.role_id)
+        .filter_by(org_id=member.org_id, user_id=member.user_id)
+        .subquery()
+    )
+
+    # Get abilities from the list of roles from the subquery above
+    abilities_subquery = (
+        query(RoleAbility).filter(RoleAbility.role_id.in_(roles_subquery)).subquery()
+    )
+
+    action = aliased(Action)
+    resource = aliased(Resource)
+
+    # Get all action and resource names from the abilities in the subquery above
+    action_resource_query = (
+        query(action.name.label("action"), resource.name.label("resource"))
+        .select_from(abilities_subquery)
+        .join(action, action.id == abilities_subquery.c.action_id)
+        .join(resource, resource.id == abilities_subquery.c.resource_id)
+    )
+
+    abilities = action_resource_query.all()
+
+    privileges = {}
+
+    for ability in abilities:
+
+        resource_name = ability.resource
+
+        if resource_name not in privileges:
+            privileges[resource_name] = []
+
+        privileges[resource_name].append(ability.action)
+
+    return privileges
