@@ -288,11 +288,17 @@ class Validator(_Validator):
 
         return super(Validator, self).validate(document, **kwargs)
 
-    def _validate_unique(self, is_unique, field, value, **kwargs):
+    def _validate_unique(self, is_unique, field, value):
+        """Performs a query to the database to check value is already present
+        in a given column.
+
+        The rule's arguments are validated against this schema:
+        {'type': 'boolean'}
+        """
 
         if is_unique:
-            filter = {field: value}
-            model = self.model_class.query.filter_by(**filter).first()
+            filters = {field: value}
+            model = self.model_class.query.filter_by(**filters).first()
 
             if model and (not self.update or model is not self.model):
                 self._error(field, f"Must be unique, but '{value}' already exist")
