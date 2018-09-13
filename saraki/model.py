@@ -140,7 +140,7 @@ class Membership(Model):
     relationship between the tables :class:`User` and :class:`Org`.
     """
 
-    __tablename__ = "org_member"
+    __tablename__ = "membership"
 
     #: The ID of a user account in the table :class:`User`.
     user_id = Column(Integer, ForeignKey("user.id"), primary_key=True)
