@@ -102,7 +102,7 @@ def insert_users():
             "username": "coyote",
             "email": "coyote@acme",
             "plain_text_password": "12345",
-            "hashed_password": (
+            "_password": (
                 "$bcrypt-sha256$2b,"
                 "12$lBIBMOF0u7gt6ruXNKalIO$i2MHLlTAbDNrw./RtN9jhDbdC/3dMXu"
             ),
@@ -111,7 +111,7 @@ def insert_users():
             "username": "RoadRunner",
             "email": "RoadRunner@acme",
             "plain_text_password": "password",
-            "hashed_password": (
+            "_password": (
                 "$bcrypt-sha256$2b,"
                 "12$f9QIjKmLyaWb3gEp4KTORe$jrfpqWIANSyaEBnzQNz6YLcJusn9uH6"
             ),
@@ -120,7 +120,7 @@ def insert_users():
             "username": "YoseSam",
             "email": "y0sesam@acme",
             "plain_text_password": "secret",
-            "hashed_password": (
+            "_password": (
                 "$bcrypt-sha256$2b,"
                 "12$3n9wunxWHfvZj0mg8v10Ru$lSo2YkVRepteVO62W8Q4L3Dn3xmoPna"
             ),
@@ -128,15 +128,11 @@ def insert_users():
     ]
 
     for item in lst:
-
-        data = {
-            "username": item["username"],
-            "canonical_username": item["username"].lower(),
-            "password": item["hashed_password"],
-            "email": item["email"],
-        }
-
-        user = User(**data)
+        user = User(
+            username=item["username"],
+            email=item["email"],
+            _password=item["_password"],
+        )
         database.session.add(user)
 
 

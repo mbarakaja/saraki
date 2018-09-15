@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
 )
 from sqlalchemy.orm import relationship, aliased
+from sqlalchemy.ext.hybrid import hybrid_property
 from flask_sqlalchemy import SQLAlchemy
 from saraki.utility import import_into_sqla_object, export_from_sqla_object
 
@@ -58,35 +59,63 @@ class User(Model):
     #: Email associated with the account. Must be unique.
     email = Column(String(128), unique=True, nullable=False)
 
-    #: Username associated with the account. Must be unique.
-    username = Column(String(20), unique=True, nullable=False)
+    _username = Column("username", String(20), unique=True, nullable=False)
 
-    #: The canonical username. Must be unique. This is a lowercase version
-    #: of the username, used for authentication and validation in the signup
-    #: time.
-    canonical_username = Column(String(20), unique=True, nullable=False)
+    @hybrid_property
+    def username(self):
+        """Username associated with the account. Must be unique."""
+        return self._username
 
-    #: Encrypted password string. Don't set the value of this column directly,
-    #: instead use the class method ``set_password`` that will verify the
-    #: strength of the password and encrypt it for you.
-    password = Column(String(255), nullable=False)
+    @username.setter
+    def username(self, value):
+        self._username = value
+        self._canonical_username = value.lower()
+
+    _canonical_username = Column(
+        "canonical_username", String(20), unique=True, nullable=False
+    )
+
+    @hybrid_property
+    def canonical_username(self):
+        """ Lowercase version of the username used for authentication.
+
+        Don't set this column directly. This column is filled automatically
+        when the :attr:`username` column is assigned with a value.
+        """
+        return self._canonical_username
+
+    #: Don't set the value of this property directly, instead use the hybrid
+    #: property ``password`` that will encrypt it for you.
+    _password = Column("password", String(255), nullable=False)
+
+    @hybrid_property
+    def password(self):
+        """ The password is hashed under the hood, so set this with the
+        original/unhashed password directly.
+        """
+        return self._password
+
+    @password.setter
+    def password(self, value):
+        self._password = bcrypt_sha256.hash(value)
 
     #: This property defines if the user account is activated or not. To use
     #: when the user verifies its account through an email for instance.
     active = Column(Boolean(), default=False, nullable=False)
 
-    def set_password(self, plain_text):
-        self.password = bcrypt_sha256.hash(plain_text)
-
-    def verify_password(self, plain_text):
-        return bcrypt_sha256.verify(plain_text, self.password)
+    def verify_password(self, value):
+        return bcrypt_sha256.verify(value, self.password)
 
     def import_data(self, data):
-
-        data["canonical_username"] = data["username"].lower()
         super(User, self).import_data(data)
 
-        self.set_password(data["password"])
+        # .import_data does not work with hybrid_property, so we set these
+        # manually.
+        if "username" in data:
+            self.username = data["username"]
+
+        if "password" in data:
+            self.password = data["password"]
 
     def export_data(self, include=(), exclude=("id", "password", "canonical_username")):
         return super(User, self).export_data(include, exclude)
