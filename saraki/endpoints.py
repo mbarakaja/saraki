@@ -1,4 +1,3 @@
-from cerberus import Validator
 from flask import request, abort
 from sqlalchemy import inspect
 from sqlalchemy.orm.exc import NoResultFound
@@ -7,6 +6,7 @@ from saraki.model import database
 from saraki.exc import ValidationError
 from saraki.auth import require_auth, current_org
 from saraki.utility import (
+    Validator,
     json,
     generate_schema,
     export_from_sqla_object as export_data,
@@ -82,7 +82,7 @@ def item_view(model_class, ident_prop, primary_key, schema, is_org, **kargs):
         payload = request.get_json()
         v = Validator(schema)
 
-        if v.validate(payload, update=True) is False:
+        if v.validate(payload, update=True, model=model) is False:
             raise ValidationError(v.errors)
 
         data = v.normalized(payload)

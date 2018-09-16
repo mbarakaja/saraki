@@ -320,34 +320,35 @@ class TestJson(object):
             view_func()
 
 
+@pytest.mark.wip
 @pytest.mark.usefixtures("data")
 class TestValidator:
     def test_constructor(self):
         v = Validator({}, Order)
         assert v.model_class is Order
 
-    def test_validate_method(self):
-        v = Validator({}, Product)
+    def test_unique_rule_missing_model_class(self, ctx):
+        v = Validator({"name": {"unique": True}})
 
-        error_message = "Provide a SQLAlchemy model instance"
-
-        with pytest.raises(RuntimeError, match=error_message):
-            v.validate({}, update=True)
-
-        model = {}
-        v.validate({}, update=True, model=model)
-        assert v.model is model
+        with pytest.raises(RuntimeError):
+            v.validate({"name": "Update name"})
 
     def test_unique_rule(self, ctx):
         v = Validator({"name": {"unique": True}}, Product)
+        assert v.validate({"name": "New product name"}) is True
 
-        assert v.validate({"name": "product name"}) is True
-
-        error_message = "Must be unique, but 'Acme anvils' already exist"
+    def test_unique_rule_when_name_already_exist(self, ctx):
+        v = Validator({"name": {"unique": True}}, Product)
         assert v.validate({"name": "Acme anvils"}) is False
-        assert error_message in v.errors["name"]
+        assert "Must be unique, but 'Acme anvils' already exist" in v.errors["name"]
 
-    def test_unique_rule_updating(self, ctx):
+    def test_unique_rule_update_without_model_argument(self, ctx):
+        v = Validator({"name": {"unique": True}}, Product)
+
+        assert v.validate({"name": "Update name"}, update=True) is True
+        assert v.validate({"name": "Acme anvils"}, update=True) is False
+
+    def test_unique_rule_update_with_model_argument(self, ctx):
         model = Product.query.filter_by(name="Acme anvils").one()
 
         v = Validator({"name": {"unique": True}}, Product)

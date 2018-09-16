@@ -275,15 +275,6 @@ class Validator(_Validator):
 
     def validate(self, document, model=None, **kwargs):
 
-        update = kwargs.get("update", False)
-
-        if update is True and model is None:
-            raise RuntimeError(
-                "update is set to True but model is None. Provide a SQLAlchemy"
-                " model instance in order to perform uniqueness validation"
-                " against the model"
-            )
-
         self.model = model
 
         return super(Validator, self).validate(document, **kwargs)
@@ -297,6 +288,13 @@ class Validator(_Validator):
         """
 
         if is_unique:
+            if not self.model_class:
+                raise RuntimeError(
+                    "The rule `unique` needs a SQLAlchemy declarative class"
+                    " to perform queries to check if the value being validated"
+                    " is unique. Provide a class in Validator constructor."
+                )
+
             filters = {field: value}
             model = self.model_class.query.filter_by(**filters).first()
 
