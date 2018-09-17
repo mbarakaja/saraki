@@ -1,6 +1,13 @@
+from functools import wraps
+from json.decoder import JSONDecodeError
+
 from flask import request, abort
+from flask.json import loads as json_loads
+
 from sqlalchemy import inspect
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy import func, Text
+from sqlalchemy.sql.expression import or_
 
 from saraki.model import database
 from saraki.exc import ValidationError
@@ -12,6 +19,186 @@ from saraki.utility import (
     export_from_sqla_object as export_data,
     import_into_sqla_object as import_data,
 )
+
+
+class Collection:
+    """ Creates a decorator for collection endpoints.
+
+    View functions decorated with this decorator must return a SQLAlchemy
+    declarative class. This decorator can handle filtering, search, pagination
+    and sorting using HTTP query strings.
+
+    This is implemented as a class to extend or change the format of the query
+    strings.
+
+    Usage:
+
+    .. code-block:: python
+
+        # First create a instance
+        collection = Collection()
+
+        @app.route('/products')
+        @collection()
+        def index():
+            # return a SQLAlchemy declarative class
+            return Product
+
+    """
+
+    def _parse_query_string(self, cls, qs):
+        qs = qs.to_dict(flat=True)
+        schema = generate_schema(cls)
+        mapper = inspect(cls)
+        columns = [column.name for column in mapper.c]
+        query_string_schema = {
+            "select": {
+                "type": "dict",
+                "allowed": columns,
+                "valueschema": {"type": "integer"},
+            },
+            "search": {
+                "type": "dict",
+                "schema": {
+                    "t": {"required": True},
+                    "f": {"required": True, "type": "list", "allowed": columns},
+                },
+            },
+            "filter": {"type": "dict", "schema": schema},
+            "sort": {},
+            "limit": {"type": "integer", "coerce": int},
+            "page": {"type": "integer", "coerce": int},
+        }
+
+        # First decode all modifiers with JSON string
+        json_keys = {"select", "search", "filter"}
+        decoded_qs = {}
+
+        for key, value in qs.items():
+            if key in json_keys:
+                try:
+                    decoded_qs[key] = json_loads(value)
+                except JSONDecodeError:
+                    raise ValidationError({key: "Invalid JSON string"})
+            else:
+                decoded_qs[key] = value
+
+        v = Validator(query_string_schema)
+
+        if v.validate(decoded_qs, update=True) is False:
+            raise ValidationError(v.errors)
+
+        return v.normalized(decoded_qs)
+
+    def _filter_modifier(self, query, filters):
+        return query.filter_by(**filters)
+
+    def _parse_select_modifier(self, select):
+        include = []
+        exclude = []
+
+        for column_name, flag in select.items():
+            if flag:
+                include.append(column_name)
+                continue
+
+            exclude.append(column_name)
+
+        params = {}
+
+        if include:
+            params["include"] = include
+
+        if exclude:
+            params["exclude"] = exclude
+
+        return params
+
+    def _search_modifier(self, cls, query, search):
+        term = search["t"]
+        filters = []
+        mapper = cls.__mapper__
+
+        for column_name in search["f"]:
+            column = getattr(cls, column_name)
+
+            if mapper.c[column_name].type.python_type != str:
+                column = func.cast(column, Text)
+
+            filters.append(column.ilike(f"%{term}%"))
+
+        return query.filter(or_(*filters))
+
+    def _sort_modifier(self, cls, query, sort):
+        sorting = []
+
+        for column_name in sort.split(","):
+            if column_name.startswith("-"):
+                column = getattr(cls, column_name[1:])
+                sorting.append(column.desc())
+                continue
+
+            column = getattr(cls, column_name)
+            sorting.append(column.asc())
+
+        return query.order_by(*sorting)
+
+    def __call__(self, default_limit=30, max_limit=100):
+
+        def decorator(f):
+            @wraps(f)
+            def wrapper(*args, **kwargs):
+
+                fargs = f(*args, **kwargs)
+                Model = fargs[0] if type(fargs) == tuple else fargs
+
+                modifiers = self._parse_query_string(Model, request.args)
+
+                query = Model.query
+
+                if "filter" in modifiers:
+                    query = self._filter_modifier(query, modifiers["filter"])
+
+                if "search" in modifiers:
+                    query = self._search_modifier(Model, query, modifiers["search"])
+
+                if "sort" in modifiers:
+                    query = self._sort_modifier(Model, query, modifiers["sort"])
+
+                page = modifiers.get("page", 1)
+
+                limit = min(modifiers.get("limit", default_limit), max_limit)
+
+                result = query.paginate(page, limit)
+                items = result.items
+
+                export_data_params = {}
+
+                if "select" in modifiers:
+                    export_data_params = self._parse_select_modifier(
+                        modifiers["select"]
+                    )
+
+                try:
+                    payload = [item.export_data(**export_data_params) for item in items]
+                except AttributeError as e:
+                    # If the method exist, the exception comes inside of it.
+                    if hasattr(Model, "export_data"):
+                        # So reaise the exception.
+                        raise e
+
+                    payload = [
+                        export_data(item, **export_data_params) for item in items
+                    ]
+
+                return payload, {"X-Total": result.total, "X-Page": page}
+
+            return wrapper
+
+        return decorator
+
+
+collection = Collection()
 
 
 def _import_data(model, data):

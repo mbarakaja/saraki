@@ -1,11 +1,17 @@
 import pytest
-from flask import Flask
+from unittest.mock import patch, MagicMock
+from flask import Flask, request
 from flask.json import dumps
-from common import Product, OrderLine, Cartoon, Todo, login
+from sqlalchemy import Column, Integer
+from sqlalchemy.sql.expression import or_
+from sqlalchemy import func, Text
 
-from saraki.endpoints import add_resource
-from saraki.model import database, Org
+from saraki.endpoints import add_resource, collection
+from saraki.model import database, Org, Model
+from saraki.exc import ValidationError
 from saraki.testing import get_view_function, assert_allowed_methods
+
+from common import Person, Product, OrderLine, Cartoon, Todo, login
 
 
 class Test_add_resource:
@@ -395,3 +401,234 @@ class TestOrgResource:
 
         assert rv.status_code == 200
         assert Todo.query.get(_id) is None
+
+
+@pytest.mark.usefixtures("database_conn", "ctx")
+class TestCollection:
+    @pytest.mark.parametrize(
+        "key, value, expected",
+        [
+            (
+                "search",
+                '{"t": "term", "f": ["name", "color"]}',
+                {"t": "term", "f": ["name", "color"]},
+            ),
+            ("filter", '{"color": "blue", "price": 2}', {"color": "blue", "price": 2}),
+            ("select", '{"id": 1, "name": 1}', {"id": 1, "name": 1}),
+            ("limit", "50", 50),
+            ("page", "3", 3),
+        ],
+    )
+    def test_parse_query_string(self, request_ctx, key, value, expected):
+        with request_ctx(f"/?{key}={value}"):
+            output = collection._parse_query_string(Product, request.args)
+
+        assert output[key] == expected
+
+    @pytest.mark.parametrize(
+        "qs",
+        [
+            'filter={"unknown": "value", "price": 20}',
+            'filter={"unknown": "value", "price": "text"}',
+            "filter={name: tnt, enabled: True}",
+            'select={"unknown": 1, "name": 1}',
+            'select={"id": "text", "name": 1}',
+            "select={id: 1, name: 1}",
+            "limit=text",
+            "page=text",
+        ],
+        ids=[
+            "filter: with unknown column",
+            "filter: with invalid value type",
+            "filter: invalid JSON string",
+            "select: with unknown column",
+            "select: with non integer value",
+            "select: invalid JSON string",
+            "limit : non integer value",
+            "page  : non integer value",
+        ],
+    )
+    def test_invalid_modifier(self, request_ctx, qs):
+        with request_ctx(f"/?{qs}"):
+            with pytest.raises(ValidationError):
+                collection()(lambda: Product)()
+
+    def test_unknown_modifier(self, request_ctx):
+        with request_ctx("/?unknown=value"):
+            with pytest.raises(ValidationError):
+                collection()(lambda: Product)()
+
+    @pytest.mark.parametrize(
+        "param, expected",
+        [
+            ({"name": 1, "color": 1}, {"include": ["name", "color"]}),
+            ({"name": 1, "color": 0}, {"include": ["name"], "exclude": ["color"]}),
+            ({"name": 0, "color": 0}, {"exclude": ["name", "color"]}),
+        ],
+    )
+    @patch.object(Product, "query")
+    def test_parse_select_modifier(self, query, request_ctx, param, expected):
+        params = collection._parse_select_modifier(param)
+
+        assert params == expected
+
+    @patch.object(Product, "query")
+    def test_filter_modifier(self, query, request_ctx):
+
+        with request_ctx('/?filter={"name": "tnt", "enabled": true}'):
+            collection()(lambda: Product)()
+
+        query.filter_by.assert_called_with(**{"name": "tnt", "enabled": True})
+
+    @patch.object(Product, "query")
+    def test_search_modifier(self, query, request_ctx):
+
+        with request_ctx('/?search={"t": "black", "f": ["name", "color"]}'):
+            collection()(lambda: Product)()
+
+        query.filter.assert_called()
+
+        expected = or_(Product.name.ilike("%black%"), Product.color.ilike("%black%"))
+        original = query.filter.call_args[0][0]
+
+        assert original.compare(expected)
+
+    @patch.object(Product, "query")
+    def test_search_modifier_on_non_text_column(self, query, request_ctx):
+
+        with request_ctx('/?search={"t": "black", "f": ["price", "color"]}'):
+            collection()(lambda: Product)()
+
+        query.filter.assert_called()
+
+        expected = or_(
+            func.cast(Product.price, Text).ilike("%black%"),
+            Product.color.ilike("%black%"),
+        )
+        original = query.filter.call_args[0][0]
+
+        # For some reason, compare() fails with expression that uses
+        # func.cast(). Must investigate if this is a bug.
+        # assert original.compare(expected)
+        assert str(original) == str(expected)
+
+    @patch.object(Product, "query")
+    def test_sort_modifier_with_single_field(self, query, request_ctx):
+        with request_ctx("/?sort=name"):
+            collection()(lambda: Product)()
+
+        query.order_by.assert_called()
+
+        expected = Product.name.asc()
+        original = query.order_by.call_args[0][0]
+        assert original.compare(expected)
+
+    @patch.object(Product, "query")
+    def test_sort_modifier_with_multiple_fields(self, query, request_ctx):
+        with request_ctx("/?sort=name,color"):
+            collection()(lambda: Product)()
+
+        query.order_by.assert_called()
+
+        expected = Product.name.asc()
+        original = query.order_by.call_args[0][0]
+        assert original.compare(expected)
+
+        expected = Product.color.asc()
+        original = query.order_by.call_args[0][1]
+        assert original.compare(expected)
+
+    @patch.object(Product, "query")
+    def test_sort_modifier_with_descending_order(self, query, request_ctx):
+        with request_ctx("/?sort=-name"):
+            collection()(lambda: Product)()
+
+        query.order_by.assert_called()
+
+        expected = Product.name.desc()
+        original = query.order_by.call_args[0][0]
+        assert original.compare(expected)
+
+    @pytest.mark.parametrize(
+        "query_string, expected",
+        [("", (1, 30)), ("limit=50", (1, 50)), ("limit=200", (1, 100))],
+        ids=["default limit", "custom limit", "default max limit"],
+    )
+    @patch.object(Product, "query")
+    def test_limit_modifier(self, query, request_ctx, query_string, expected):
+        with request_ctx(f"/?{query_string}"):
+            collection()(lambda: Product)()
+
+        query.paginate.assert_called_with(*expected)
+
+    @patch.object(Product, "query")
+    def test_page_modifier(self, query, request_ctx):
+        with request_ctx("/?page=50"):
+            collection()(lambda: Product)()
+
+        query.paginate.assert_called_with(50, 30)
+
+    @patch.object(Product, "query")
+    def test_select_modifier(self, query, request_ctx):
+        item = MagicMock()
+        query.paginate().items = [item]
+
+        with request_ctx('/?select={"id": 1}'):
+            collection()(lambda: Product)()
+
+        item.export_data.assert_called_with(include=["id"])
+
+    @patch.object(Product, "query")
+    def test_returned_value(self, query, request_ctx):
+        item = MagicMock()
+        item.export_data.return_value = {"id": 300}
+
+        query.paginate().items = [item]
+        query.paginate().total = 1
+
+        with request_ctx('/?select={"id": 1}&page=3'):
+            rv = collection()(lambda: Product)()
+
+        assert rv[0] == [{"id": 300}]
+        assert rv[1] == {"X-Total": 1, "X-Page": 3}
+
+    @patch.object(Product, "query")
+    def test_model_class_without_export_data_method(self, query, request_ctx):
+        item = Product(id=4, name="Acme explosive tennis balls", )
+
+        query.paginate().items = [item]
+        query.paginate().total = 1
+
+        with request_ctx('/?select={"id": 1}&page=3'):
+            rv = collection()(lambda: Product)()
+
+        assert rv[0] == [{"id": 4}]
+        assert rv[1] == {"X-Total": 1, "X-Page": 3}
+
+    @patch.object(Person, "query")
+    def test_model_class_with_export_data_method(self, query, request_ctx):
+        item = Person(id=300, firstname="John", lastname="Connor")
+
+        query.paginate().items = [item]
+        query.paginate().total = 1
+
+        with request_ctx('/?select={"firstname": 1}&page=3'):
+            rv = collection()(lambda: Person)()
+
+        assert rv[0] == [{"firstname": "John"}]
+        assert rv[1] == {"X-Total": 1, "X-Page": 3}
+
+    def test_model_class_export_data_with_exception(self, request_ctx):
+
+        class TestTable(Model):
+            id = Column(Integer, primary_key=True)
+
+            def export_data(self, **kargs):
+                raise AttributeError("Inside of export_data method")
+
+        TestTable.query = MagicMock()
+        TestTable.query.paginate().items = [TestTable(id=1)]
+
+        with request_ctx('/'):
+            with pytest.raises(AttributeError, match="Inside of export_data method"):
+                collection()(lambda: TestTable)()
