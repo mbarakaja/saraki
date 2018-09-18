@@ -1,4 +1,3 @@
-import pytest
 from json import dumps
 from passlib.hash import bcrypt_sha256
 from saraki.model import User
@@ -20,7 +19,6 @@ def test_signup_user_endpoint(client):
     assert bcrypt_sha256.identify(user.password) is True
 
 
-@pytest.mark.wip
 def test_password_column():
     user = User()
     user.password = "12345"

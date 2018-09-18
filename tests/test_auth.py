@@ -1288,7 +1288,6 @@ class TestEndpoint(object):
         assert client.put("/movies", headers=headers).status_code == expected
 
 
-@pytest.mark.wip
 def test_register_persist_actions_handler():
     auth = Auth()
 
@@ -1299,7 +1298,6 @@ def test_register_persist_actions_handler():
     assert auth._persist_actions_func == custom_handler
 
 
-@pytest.mark.wip
 def test_register_persist_resources_handler():
     auth = Auth()
 

@@ -129,9 +129,7 @@ def insert_users():
 
     for item in lst:
         user = User(
-            username=item["username"],
-            email=item["email"],
-            _password=item["_password"],
+            username=item["username"], email=item["email"], _password=item["_password"]
         )
         database.session.add(user)
 

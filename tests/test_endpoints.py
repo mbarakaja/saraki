@@ -594,7 +594,7 @@ class TestCollection:
 
     @patch.object(Product, "query")
     def test_model_class_without_export_data_method(self, query, request_ctx):
-        item = Product(id=4, name="Acme explosive tennis balls", )
+        item = Product(id=4, name="Acme explosive tennis balls")
 
         query.paginate().items = [item]
         query.paginate().total = 1
@@ -619,7 +619,6 @@ class TestCollection:
         assert rv[1] == {"X-Total": 1, "X-Page": 3}
 
     def test_model_class_export_data_with_exception(self, request_ctx):
-
         class TestTable(Model):
             id = Column(Integer, primary_key=True)
 
@@ -629,6 +628,6 @@ class TestCollection:
         TestTable.query = MagicMock()
         TestTable.query.paginate().items = [TestTable(id=1)]
 
-        with request_ctx('/'):
+        with request_ctx("/"):
             with pytest.raises(AttributeError, match="Inside of export_data method"):
                 collection()(lambda: TestTable)()

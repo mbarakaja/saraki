@@ -144,7 +144,6 @@ class Collection:
         return query.order_by(*sorting)
 
     def __call__(self, default_limit=30, max_limit=100):
-
         def decorator(f):
             @wraps(f)
             def wrapper(*args, **kwargs):
