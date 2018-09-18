@@ -73,10 +73,10 @@ class TestExportData:
         data = export_data(product)
 
         assert len(data) == 7
-        data["id"] = 1
-        data["name"] = "Explosive Tennis Balls"
-        data["color"] = "white"
-        data["price"] = 9
+        assert data["id"] == 1
+        assert data["name"] == "Explosive Tennis Balls"
+        assert data["color"] == "white"
+        assert data["price"] == 9
 
     def test_loaded_one_to_many_relationship(self, ctx):
         export_data = ExportData()
