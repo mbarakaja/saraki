@@ -1,16 +1,18 @@
 import pytest
+from unittest.mock import patch
 from json import loads
 from sqlalchemy.orm import joinedload
 from werkzeug.exceptions import UnsupportedMediaType, BadRequest
 from flask import make_response
-from common import Product, Order, OrderLine, DummyBaseModel, DummyModel
 from saraki.utility import (
+    export_from_sqla_object,
     ExportData,
     import_into_sqla_object,
     json,
     Validator,
     get_key_path,
 )
+from common import Cartoon, Product, Order, OrderLine, DummyBaseModel, DummyModel, Todo
 
 
 def test_import_into_sqla_object():
@@ -158,6 +160,36 @@ class TestExportData:
 
         assert "id" not in data
 
+    def test_exclude_property_on_model_with_export_data_method(self, ctx):
+        assert hasattr(Cartoon, "export_data")
+        assert hasattr(Cartoon, "id")
+
+        export_data = ExportData(exclude=["id"])
+        product = Cartoon.query.first()
+        data = export_data(product)
+
+        assert "id" not in data
+
+    def test_exclude_property_on_list_of_models_with_export_data_method(self, ctx):
+        assert hasattr(Todo, "export_data")
+
+        lst = Cartoon.query.all()
+        assert len(lst) > 0
+
+        output = export_from_sqla_object(lst)
+        assert all(["org_id" not in model for model in output])
+
+    def test_exclude_property_on_list_of_models(self, ctx):
+        export_data = ExportData(exclude=["customer_id"])
+
+        assert not hasattr(Order, "export_data")
+        lst = Order.query.all()
+
+        assert len(lst) > 0
+        output = export_data(lst)
+
+        assert all(["customer_id" not in model for model in output])
+
     def test_exclude_property_and_include_parameter(self, ctx):
         export_data = ExportData(exclude=["id"])
         product = Product.query.get(1)
@@ -166,18 +198,16 @@ class TestExportData:
 
         assert "id" not in data
 
-    def test_list_of_sqlalchemy_objects(self, ctx):
+    def test_list_of_models_without_export_data(self, ctx):
         export_data = ExportData()
-
         lst = export_data(Order.query.all())
 
         assert type(lst) == list
         assert len(lst) == 2
         assert {"id": 1, "customer_id": 1} in lst
 
-    def test_list_of_sqlalchemy_objects_with_export_method(self, ctx):
+    def test_list_of_models_with_export_method(self, ctx):
         export_data = ExportData()
-
         lst = export_data(OrderLine.query.all())
         data = lst[0]
 
@@ -185,6 +215,38 @@ class TestExportData:
         assert "product_id" in data
         assert "unit_price" in data
         assert "quantity" in data
+
+    def test_explicit_inclusion_on_list_of_models(self, ctx):
+        export_data = ExportData()
+        lst = export_data(Order.query.all(), include=["id"])
+
+        assert type(lst) == list
+        assert len(lst) == 2
+        assert all(["customer_id" not in model for model in lst])
+
+    def test_explicit_exclusion_on_list_of_models(self, ctx):
+        export_data = ExportData()
+        lst = export_data(Order.query.all(), exclude=["customer_id"])
+
+        assert type(lst) == list
+        assert len(lst) == 2
+        assert all(["customer_id" not in model for model in lst])
+
+    def test_explicit_inclusion_on_list_of_model_with_export_data_method(self, ctx):
+        export_data = ExportData()
+        lst = Cartoon.query.all()
+        output = export_data(Cartoon.query.all(), include=["id"])
+
+        assert len(output) == len(lst)
+        assert all(["name" not in model for model in output])
+
+    def test_explicit_exclusion_on_list_of_models_with_export_data_method(self, ctx):
+        export_data = ExportData()
+        lst = OrderLine.query.all()
+        output = export_data(lst, exclude=["product_id"])
+
+        assert len(output) == len(lst)
+        assert all(["product_id" not in model for model in output])
 
     def test_loaded_one_to_one_relationship_with_export_data_method(self, ctx):
         export_data = ExportData()
@@ -198,6 +260,25 @@ class TestExportData:
         assert len(customer) == 2
         assert "id" in customer
         assert "firstname" in customer
+
+    def test_model_class_export_data_with_exception(self, request_ctx):
+        class Fake:
+            def export_data(self, include, exclude):
+                raise AttributeError("Inside of export_data method")
+
+        with pytest.raises(AttributeError, match="Inside of export_data method"):
+            export_from_sqla_object([Fake()])
+
+    def test_passed_arguments_on_list_of_model_with_export_data_method(self, ctx):
+        """Test that the global list of excluded columns are not passed down
+        to export_data method.
+        """
+
+        with patch.object(OrderLine, "export_data"):
+            model = OrderLine()
+            export_from_sqla_object([model], exclude=["product_id"])
+
+            model.export_data.assert_called_with((), ["product_id"])
 
 
 class TestJson(object):

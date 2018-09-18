@@ -83,7 +83,8 @@ class OrderLine(Model):
 
     product = relationship("Product", uselist=False)
 
-    def export_data(self, include=("product_id", "unit_price", "quantity"), exclude=()):
+    def export_data(self, include=(), exclude=()):
+        include = tuple(include) + ("product_id", "unit_price", "quantity")
         return super(OrderLine, self).export_data(include, exclude)
 
 

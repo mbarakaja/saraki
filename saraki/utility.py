@@ -39,25 +39,28 @@ def _get_column_default(c):
 
 class ExportData:
     """Creates a callable object that convert SQLAlchemy model instances
-    to dictionary.
+    to dictionaries.
     """
 
     def __init__(self, exclude=()):
+
+        #: A global list of column names to exclude. This takes precedence over
+        #: the parameters ``include`` and/or ``exclude`` of this instance call.
         self.exclude = tuple(exclude)
 
     def __call__(self, obj, include=(), exclude=()):
-        """Converts SQLAlchemy models into dict objects. It can take a single
-        model or a list of models.
+        """Converts SQLAlchemy models into python serializable objects. It can
+        take a single model or a list of models.
 
         By default, all columns are included in the output, unless a list of
-        column names are provided to the parameters include or exclude. The
-        latter has precedence over the former. Finally, the columns that appear
-        in the excluded property will be excluded, regardless of the values that
-        the parameters include and exclude have.
+        column names are provided to the parameters ``include`` or ``exclude``.
+        The latter has precedence over the former. Finally, the columns that
+        appear in the :attr:`excluded` property will be excluded, regardless of
+        the values that the parameters include and exclude have.
 
-        If the model is not persisted in the database, the default values of the
-        columns are used if they exist in the class definition. From the example
-        below, the value False will be used for the column active::
+        If the model is not persisted in the database, the default values of
+        the columns are used if they exist in the class definition. From the
+        example below, the value False will be used for the column active::
 
             active = Column(Boolean, default=False)
 
@@ -66,23 +69,25 @@ class ExportData:
         :param exclude: tuple, list or set.
         """
 
-        exclude = tuple(exclude) + self.exclude
-
         if isinstance(obj, (list, InstrumentedList)):
-            has_export_data = len(obj) > 0 and hasattr(obj[0], "export_data")
+            try:
+                return [item.export_data(include, exclude) for item in obj]
+            except AttributeError as e:
+                # If the method exist, the exception comes inside of it.
+                if hasattr(obj[0], "export_data"):
+                    # So re-raise the exception.
+                    raise e
 
-            if has_export_data:
-                return [item.export_data() for item in obj]
-            else:
-                return [export_from_sqla_object(item, include, exclude) for item in obj]
+                return [self(item, include, exclude) for item in obj]
 
         try:
             persisted = inspect(obj).persistent
         except NoInspectionAvailable as e:
             raise ValueError("Pass a valid SQLAlchemy mapped class instance")
 
+        columns = obj.__mapper__.columns
+        exclude = tuple(exclude) + self.exclude
         data = {}
-        columns = obj.__class__.__table__.columns
 
         for c in columns:
             name = c.name
@@ -114,7 +119,7 @@ class ExportData:
                     if has_export_data:
                         data[key] = rproperty.export_data()
                     elif rproperty:
-                        data[key] = export_from_sqla_object(rproperty)
+                        data[key] = self(rproperty)
 
         return data
 
