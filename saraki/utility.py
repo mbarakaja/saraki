@@ -18,6 +18,15 @@ schema_type_conversions = {
 }
 
 
+def is_sqla_obj(obj):
+    """Checks if an object is a SQLAlchemy model instance."""
+    try:
+        inspect(obj)
+        return True
+    except NoInspectionAvailable:
+        return False
+
+
 def import_into_sqla_object(model_instance, data):
     """Import a dictionary, assigning each item value that match to a
     column name of the object entity class.
@@ -190,31 +199,39 @@ def generate_schema(model_class, include=(), exclude=()):
 
 
 def json(func):
-    """Decorator for flask view functions.
+    """Decorator for view functions to return a JSON response.
 
-    Check if the request is properly formatted before calling the view
-    function. Next, get the return value of the view function and transform it
-    into a JSON response in a standardized way.
+    When the incoming request is a POST request, it validates the content_type
+    and payload before calling the view function. Next, the returned value of
+    the view function is transformed into a JSON response.
 
-    You can return the next values:
+    The view function can return the response payload, status code and headers
+    in the next ways:
 
     1.  A single object. Can be any JSON serializable object, a Flask Response
-        object, or a SQLAlchemy model::
+        object, or a SQLAlchemy model:
+
+        .. code-block:: python
 
             return {}
 
-            # This return a Flask Response too.
+            # custom Response
             return make_response(...)
 
-            # SQLAlchemy model
+            # SQLAlchemy model instance
             return Mode.query.filter_by(prop=prop).first()
 
             return []
 
-            return "..."
+            return "string response"
 
-    2.  A tuple in the form **(body, status, headers)**, the response body can
-        be any python built-in type, or a SQLAlchemy based model object.::
+    2.  A tuple in the form **(payload, status, headers)**, or **(payload, headers)**
+        the response payload can be any python built-in type, or a SQLAlchemy based
+        model object.:
+
+        .. code-block:: python
+
+            # payload, status
 
             return {}, 201
 
@@ -222,27 +239,28 @@ def json(func):
 
             return '...', 400
 
+            # payload, status, headers
+
             return {}, 201, {'X-Header': 'content'}
+
+            # payload, headers
+
+            return {}, {'X-Header': 'content'}
     """
 
     @wraps(func)
     def wrapper(*args, **kwargs):
 
         if request.method == "POST":
-            if (
-                request.content_type is None
-                or "application/json" not in request.content_type
-            ):
+            if not request.is_json:
                 abort(415, "application/json mimetype expected")
 
             if request.get_json(silent=True) is None:
-                abort(400, "The body request has an invalid JSON object")
+                abort(400, "The request payload has an invalid JSON object")
 
         ro = func(*args, **kwargs)  # returned object
 
-        is_tuple = type(ro) == tuple
-
-        if not is_tuple:
+        if type(ro) != tuple:
             if isinstance(ro, (int, bool, str, list, dict, list)):
                 return jsonify(ro)
 
@@ -251,22 +269,29 @@ def json(func):
 
             ro = (ro,)
 
-        body, status, headers = ro + (None,) * (3 - len(ro))
+        payload, status, headers = ro + (None,) * (3 - len(ro))
 
-        if hasattr(body, "__table__"):
-            body = (
-                body.export_data()
-                if hasattr(body, "export_data")
-                else export_from_sqla_object(body)
-            )
+        if type(status) != int:
+            headers, status = status, None
 
-        response_object = jsonify(body)
+        if is_sqla_obj(payload):
+            try:
+                payload = payload.export_data()
+            except AttributeError as e:
+                # If the method exist, the exception comes inside of it.
+                if hasattr(payload, "export_data"):
+                    # So re-raise the exception.
+                    raise e
+
+                payload = export_from_sqla_object(payload)
+
+        response_object = jsonify(payload)
 
         if status:
             response_object.status_code = status
 
         if headers:
-            response_object.headers.extend(headers or {})
+            response_object.headers.extend(headers)
 
         return response_object
 

@@ -281,7 +281,8 @@ class TestExportData:
             model.export_data.assert_called_with((), ["product_id"])
 
 
-class TestJson(object):
+@pytest.mark.wip
+class TestJson:
     @pytest.mark.parametrize(
         "returned, expected",
         [
@@ -311,17 +312,26 @@ class TestJson(object):
         [
             (({"id": 1}, 500), (500, {"id": 1})),
             (([1, 2, 3], 404), (404, [1, 2, 3])),
-            ((DummyBaseModel(id=2), 201), (201, {"id": 2})),
-            ((DummyModel(id=2), 201), (201, {"id": 2})),
             (("Hello", 201), (201, "Hello")),
             ((1, 201), (201, 1)),
             ((None, 201), (201, None)),
+            ((DummyBaseModel(id=2), 201), (201, {"id": 2})),
+            ((DummyModel(id=2), 201), (201, {"id": 2})),
+            (({"id": 14}, {"X-Header": "value"}), (200, {"id": 14})),
+        ],
+        ids=[
+            "dict type, status",
+            "list type, status",
+            "string type, status",
+            "integer type, status",
+            "None type, status",
+            "model without export_data, status",
+            "model with export_data, status",
+            "dict, headers",
         ],
     )
-    def test_return_status_code(self, returned, expected, request_ctx):
-        @json
-        def view_func():
-            return returned
+    def test_status_code(self, returned, expected, request_ctx):
+        view_func = json(lambda: returned)
 
         with request_ctx("/"):
             rv = view_func()
@@ -383,9 +393,14 @@ class TestJson(object):
         def view_func():
             pass
 
-        error_message = "The body request has an invalid JSON object"
+        error_message = "The request payload has an invalid JSON object"
+        params = {
+            "method": "POST",
+            "content_type": "application/json",
+            "data": "{'prop': 'value'}",
+        }
 
-        with request_ctx(method="POST", content_type="application/json"):
+        with request_ctx(**params):
             with pytest.raises(BadRequest, match=error_message):
                 view_func()
 
@@ -398,6 +413,18 @@ class TestJson(object):
 
         with request_ctx(**config):
             view_func()
+
+    @patch('saraki.utility.is_sqla_obj', return_value=True)
+    def test_model_class_export_data_with_exception(self, is_sqla_obj, request_ctx):
+        class Fake:
+            def export_data(self, include=None, exclude=None):
+                raise AttributeError("Inside of export_data method")
+
+        view_func = json(lambda: Fake())
+
+        with request_ctx('/'):
+            with pytest.raises(AttributeError, match="Inside of export_data method"):
+                view_func()
 
 
 @pytest.mark.usefixtures("data")
