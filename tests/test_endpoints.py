@@ -403,6 +403,22 @@ class TestOrgResource:
         assert Todo.query.get(_id) is None
 
 
+def mock_query():
+    query = MagicMock(
+        name="Query", spec=["filter", "filter_by", "order_by", "paginate"]
+    )
+    query.filter_by = MagicMock(return_value=query)
+    query.order_by = MagicMock(return_value=query)
+    query.filter = MagicMock(return_value=query)
+
+    result = MagicMock(name="result")
+    result.items = []
+
+    query.paginate = MagicMock(return_value=result)
+
+    return query
+
+
 @pytest.mark.usefixtures("database_conn", "ctx")
 class TestCollection:
     @pytest.mark.parametrize(
@@ -472,111 +488,123 @@ class TestCollection:
 
         assert params == expected
 
-    @patch.object(Product, "query")
-    def test_filter_modifier(self, query, request_ctx):
+    @patch.object(Product, "query", new=mock_query())
+    def test_filter_modifier(self, request_ctx):
 
         with request_ctx('/?filter={"name": "tnt", "enabled": true}'):
             collection()(lambda: Product)()
 
-        query.filter_by.assert_called_with(**{"name": "tnt", "enabled": True})
+        Product.query.filter_by.assert_called_with(**{"name": "tnt", "enabled": True})
 
-    @patch.object(Product, "query")
-    def test_search_modifier(self, query, request_ctx):
+    @patch.object(Product, "query", new=mock_query())
+    def test_search_modifier(self, request_ctx):
 
         with request_ctx('/?search={"t": "black", "f": ["name", "color"]}'):
             collection()(lambda: Product)()
 
-        query.filter.assert_called()
+        Product.query.filter.assert_called()
 
         expected = or_(Product.name.ilike("%black%"), Product.color.ilike("%black%"))
-        original = query.filter.call_args[0][0]
+        original = Product.query.filter.call_args[0][0]
 
         assert original.compare(expected)
 
-    @patch.object(Product, "query")
-    def test_search_modifier_on_non_text_column(self, query, request_ctx):
+    @patch.object(Product, "query", new=mock_query())
+    def test_search_modifier_on_non_text_column(self, request_ctx):
 
         with request_ctx('/?search={"t": "black", "f": ["price", "color"]}'):
             collection()(lambda: Product)()
 
-        query.filter.assert_called()
+        Product.query.filter.assert_called()
 
         expected = or_(
             func.cast(Product.price, Text).ilike("%black%"),
             Product.color.ilike("%black%"),
         )
-        original = query.filter.call_args[0][0]
+        original = Product.query.filter.call_args[0][0]
 
-        # For some reason, compare() fails with expression that uses
-        # func.cast(). Must investigate if this is a bug.
-        # assert original.compare(expected)
+        # clauseelement.compare() is not implemented for cast()
+        # so use string comparison instead
         assert str(original) == str(expected)
 
-    @patch.object(Product, "query")
-    def test_sort_modifier_with_single_field(self, query, request_ctx):
+    @patch.object(Product, "query", new=mock_query())
+    def test_sort_modifier_with_single_field(self, request_ctx):
         with request_ctx("/?sort=name"):
             collection()(lambda: Product)()
 
-        query.order_by.assert_called()
+        Product.query.order_by.assert_called()
 
         expected = Product.name.asc()
-        original = query.order_by.call_args[0][0]
+        original = Product.query.order_by.call_args[0][0]
         assert original.compare(expected)
 
-    @patch.object(Product, "query")
-    def test_sort_modifier_with_multiple_fields(self, query, request_ctx):
+    @patch.object(Product, "query", new=mock_query())
+    def test_sort_modifier_with_multiple_fields(self, request_ctx):
         with request_ctx("/?sort=name,color"):
             collection()(lambda: Product)()
 
-        query.order_by.assert_called()
+        Product.query.order_by.assert_called()
 
         expected = Product.name.asc()
-        original = query.order_by.call_args[0][0]
+        original = Product.query.order_by.call_args[0][0]
         assert original.compare(expected)
 
         expected = Product.color.asc()
-        original = query.order_by.call_args[0][1]
+        original = Product.query.order_by.call_args[0][1]
         assert original.compare(expected)
 
-    @patch.object(Product, "query")
-    def test_sort_modifier_with_descending_order(self, query, request_ctx):
+    @patch.object(Product, "query", new=mock_query())
+    def test_sort_modifier_with_descending_order(self, request_ctx):
         with request_ctx("/?sort=-name"):
             collection()(lambda: Product)()
 
-        query.order_by.assert_called()
+        Product.query.order_by.assert_called()
 
         expected = Product.name.desc()
-        original = query.order_by.call_args[0][0]
+        original = Product.query.order_by.call_args[0][0]
         assert original.compare(expected)
 
+    # fmt: off
     @pytest.mark.parametrize(
         "query_string, expected",
-        [("", (1, 30)), ("limit=50", (1, 50)), ("limit=200", (1, 100))],
-        ids=["default limit", "custom limit", "default max limit"],
+        [
+            ("", (1, 30)),
+            ("limit=50", (1, 50)),
+            ("limit=200", (1, 100))
+        ],
+        ids=[
+            "default limit",
+            "custom limit",
+            "default max limit"
+        ],
     )
-    @patch.object(Product, "query")
-    def test_limit_modifier(self, query, request_ctx, query_string, expected):
+    @patch.object(Product, "query", new=mock_query())
+    def test_limit_modifier(self, request_ctx, query_string, expected):
+        # The mock is created just one time, so reset it
+        Product.query.paginate.reset_mock()
+
         with request_ctx(f"/?{query_string}"):
             collection()(lambda: Product)()
 
-        query.paginate.assert_called_with(*expected)
+        Product.query.paginate.assert_called_with(*expected)
+    # fmt: on
 
-    @patch.object(Product, "query")
-    def test_page_modifier(self, query, request_ctx):
+    @patch.object(Product, "query", new=mock_query())
+    def test_page_modifier(self, request_ctx):
         with request_ctx("/?page=50"):
             collection()(lambda: Product)()
 
-        query.paginate.assert_called_with(50, 30)
+        Product.query.paginate.assert_called_with(50, 30)
 
-    @patch.object(Product, "query")
-    def test_select_modifier(self, query, request_ctx):
+    @patch.object(Product, "query", new=mock_query())
+    def test_select_modifier(self, request_ctx):
         item = MagicMock()
-        query.paginate().items = [item]
+        Product.query.paginate().items = [item]
 
         with request_ctx('/?select={"id": 1}'):
             collection()(lambda: Product)()
 
-        item.export_data.assert_called_with(include=["id"])
+        item.export_data.assert_called_with(["id"], ())
 
     @patch.object(Product, "query")
     def test_returned_value(self, query, request_ctx):
@@ -622,7 +650,7 @@ class TestCollection:
         class TestTable(Model):
             id = Column(Integer, primary_key=True)
 
-            def export_data(self, **kargs):
+            def export_data(self, *args, **kargs):
                 raise AttributeError("Inside of export_data method")
 
         TestTable.query = MagicMock()

@@ -1,7 +1,7 @@
 from functools import wraps
 from json.decoder import JSONDecodeError
 
-from flask import request, abort
+from flask import request, abort, current_app
 from flask.json import loads as json_loads
 
 from sqlalchemy import inspect
@@ -178,17 +178,7 @@ class Collection:
                         modifiers["select"]
                     )
 
-                try:
-                    payload = [item.export_data(**export_data_params) for item in items]
-                except AttributeError as e:
-                    # If the method exist, the exception comes inside of it.
-                    if hasattr(Model, "export_data"):
-                        # So reaise the exception.
-                        raise e
-
-                    payload = [
-                        export_data(item, **export_data_params) for item in items
-                    ]
+                payload = export_data(items, **export_data_params)
 
                 return payload, {"X-Total": result.total, "X-Page": page}
 

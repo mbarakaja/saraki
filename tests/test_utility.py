@@ -414,7 +414,7 @@ class TestJson:
         with request_ctx(**config):
             view_func()
 
-    @patch('saraki.utility.is_sqla_obj', return_value=True)
+    @patch("saraki.utility.is_sqla_obj", return_value=True)
     def test_model_class_export_data_with_exception(self, is_sqla_obj, request_ctx):
         class Fake:
             def export_data(self, include=None, exclude=None):
@@ -422,7 +422,7 @@ class TestJson:
 
         view_func = json(lambda: Fake())
 
-        with request_ctx('/'):
+        with request_ctx("/"):
             with pytest.raises(AttributeError, match="Inside of export_data method"):
                 view_func()
 
