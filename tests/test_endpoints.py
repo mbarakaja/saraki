@@ -18,42 +18,42 @@ from common import Person, Product, OrderLine, Cartoon, Todo, login, auth_ctx
 class Test_add_resource:
     def test_basic_usage(self):
         app = Flask(__name__)
-        add_resource(Cartoon, app)
+        add_resource(app, Cartoon)
 
         assert_allowed_methods("/cartoon", ["GET", "POST"], app)
         assert_allowed_methods("/cartoon/1", ["GET", "DELETE", "PATCH"], app)
 
     def test_custom_base_url(self):
         app = Flask(__name__)
-        add_resource(Cartoon, app, "animations")
+        add_resource(app, Cartoon, "animations")
 
         assert_allowed_methods("/animations", ["GET", "POST"], app)
         assert_allowed_methods("/animations/1", ["GET", "DELETE", "PATCH"], app)
 
     def test_resource_with_composite_ident(self):
         app = Flask(__name__)
-        add_resource(OrderLine, app)
+        add_resource(app, OrderLine)
 
         assert_allowed_methods("/order-line", ["GET", "POST"], app)
         assert_allowed_methods("/order-line/3,14", ["GET", "DELETE", "PATCH"], app)
 
     def test_resource_with_custom_ident(self):
         app = Flask(__name__)
-        add_resource(Cartoon, app, ident="nickname")
+        add_resource(app, Cartoon, ident="nickname")
 
         assert_allowed_methods("/cartoon", ["GET", "POST"], app)
         assert_allowed_methods("/cartoon/coyote", ["GET", "DELETE", "PATCH"], app)
 
     def test_exclude_http_methods(self):
         app = Flask(__name__)
-        add_resource(Cartoon, app, methods={"list": ["GET"], "item": ["GET", "PATCH"]})
+        add_resource(app, Cartoon, methods={"list": ["GET"], "item": ["GET", "PATCH"]})
 
         assert_allowed_methods("/cartoon", ["GET"], app)
         assert_allowed_methods("/cartoon/1", ["GET", "PATCH"], app)
 
     def test_endpoint_name(self):
         app = Flask(__name__)
-        add_resource(Cartoon, app)
+        add_resource(app, Cartoon)
         adapter = app.url_map.bind("")
 
         list_endpoint = adapter.match("/cartoon")
@@ -71,7 +71,7 @@ class Test_add_resource:
     def test_custom_resource_name(self):
         app = Flask(__name__)
 
-        add_resource(Cartoon, app, resource_name="film")
+        add_resource(app, Cartoon, resource_name="film")
 
         func = get_view_function("/cartoon", app=app)[0]
         assert func._auth_metadata["resource"] == "film"
@@ -88,11 +88,11 @@ class Test_add_resource:
     def test_endpoint_with_same_resource_name(self):
         app = Flask(__name__)
 
-        add_resource(Cartoon, app, resource_name="catalog")
-        add_resource(Product, app, resource_name="catalog")
+        add_resource(app, Cartoon, resource_name="catalog")
+        add_resource(app, Product, resource_name="catalog")
 
     def test_add_organization_resource(self, app):
-        add_resource(Todo, app, "todos")
+        add_resource(app, Todo, "todos")
 
         assert_allowed_methods("/orgs/acme/todos", ["GET", "POST"], app)
         assert_allowed_methods("/orgs/acme/todos/1", ["GET", "DELETE", "PATCH"], app)
@@ -102,7 +102,7 @@ class Test_add_resource:
 class TestResourceList:
     def test_list_endpoint(self, app, client):
 
-        add_resource(Cartoon, app, secure=False)
+        add_resource(app, Cartoon, secure=False)
 
         rv = client.get("/cartoon")
 
@@ -115,19 +115,19 @@ class TestResourceList:
 @pytest.mark.usefixtures("data")
 class TestGetResourceItem:
     def test_unknown_resource(self, app, client):
-        add_resource(Cartoon, app, "cartoons", secure=False)
+        add_resource(app, Cartoon, "cartoons", secure=False)
 
         rv = client.get("/cartoons/100")
         assert rv.status_code == 404
 
     def test_get_resource(self, app, client):
-        add_resource(Cartoon, app, secure=False)
+        add_resource(app, Cartoon, secure=False)
 
         rv = client.get("/cartoon/1")
         assert rv.status_code == 200
 
     def test_resource_with_composite_ident(self, app, client):
-        add_resource(OrderLine, app, secure=False)
+        add_resource(app, OrderLine, secure=False)
 
         rv = client.get("/order-line/1,2")
 
@@ -137,13 +137,13 @@ class TestGetResourceItem:
         assert data["product_id"] == 2
 
     def test_resource_with_custom_ident(self, app, client):
-        add_resource(Cartoon, app, ident="nickname", secure=False)
+        add_resource(app, Cartoon, ident="nickname", secure=False)
 
         rv = client.get("/cartoon/bugs")
         assert rv.status_code == 200
 
     def test_unknown_resource_with_custom_ident(self, app, client):
-        add_resource(Cartoon, app, ident="nickname", secure=False)
+        add_resource(app, Cartoon, ident="nickname", secure=False)
 
         rv = client.get("/cartoon/unknown")
         assert rv.status_code == 404
@@ -152,7 +152,7 @@ class TestGetResourceItem:
 @pytest.mark.usefixtures("data")
 class TestAddResourceItem:
     def test_add_item_endpoint(self, client, app, secure=False):
-        add_resource(Cartoon, app, secure=False)
+        add_resource(app, Cartoon, secure=False)
 
         rv = client.post(
             "/cartoon",
@@ -165,7 +165,7 @@ class TestAddResourceItem:
         assert data["name"] == "Yosemite Sam"
 
     def test_with_invalid_payload(self, app, client):
-        add_resource(Cartoon, app, secure=False)
+        add_resource(app, Cartoon, secure=False)
 
         rv = client.post(
             "/cartoon",
@@ -179,13 +179,13 @@ class TestAddResourceItem:
 @pytest.mark.usefixtures("data")
 class TestUpdateResourceItem:
     def test_unknown_resource(self, app, client):
-        add_resource(Cartoon, app, "cartoons", secure=False)
+        add_resource(app, Cartoon, "cartoons", secure=False)
 
         rv = client.patch("/cartoons/100")
         assert rv.status_code == 404
 
     def test_update(self, app, client):
-        add_resource(Cartoon, app, secure=False)
+        add_resource(app, Cartoon, secure=False)
 
         rv = client.patch(
             "/cartoon/1",
@@ -205,7 +205,7 @@ class TestUpdateResourceItem:
         assert data["name"] == "Super H."
 
     def test_invalid_payload(self, app, client):
-        add_resource(Cartoon, app, secure=False)
+        add_resource(app, Cartoon, secure=False)
 
         rv = client.patch(
             "/cartoon/1",
@@ -219,13 +219,13 @@ class TestUpdateResourceItem:
 @pytest.mark.usefixtures("data")
 class TestDeleteResourceItem:
     def test_unknown_resource(self, app, client):
-        add_resource(Cartoon, app, "cartoons", secure=False)
+        add_resource(app, Cartoon, "cartoons", secure=False)
 
         rv = client.delete("/cartoons/100")
         assert rv.status_code == 404
 
     def test_delete(self, app, client):
-        add_resource(Cartoon, app, "cartoons", secure=False)
+        add_resource(app, Cartoon, "cartoons", secure=False)
 
         rv = client.delete("/cartoons/1")
         assert rv.status_code == 200
@@ -237,35 +237,35 @@ class TestDeleteResourceItem:
 @pytest.mark.usefixtures("data")
 class TestResourceAuthorization:
     def test_get_resource_list(self, app, client):
-        add_resource(Cartoon, app)
+        add_resource(app, Cartoon)
         token = login("coyote", scope={"cartoon": ["read"]})
 
         rv = client.get("/cartoon", headers={"Authorization": token})
         assert rv.status_code != 401
 
     def test_get_resource_item(self, app, client):
-        add_resource(Cartoon, app)
+        add_resource(app, Cartoon)
         token = login("coyote", scope={"cartoon": ["read"]})
 
         rv = client.get("/cartoon/1", headers={"Authorization": token})
         assert rv.status_code != 401
 
     def test_add_resource_item(self, app, client):
-        add_resource(Cartoon, app)
+        add_resource(app, Cartoon)
         token = login("coyote", scope={"cartoon": ["write"]})
 
         rv = client.post("/cartoon", headers={"Authorization": token})
         assert rv.status_code != 401
 
     def test_update_resource_item(self, app, client):
-        add_resource(Cartoon, app)
+        add_resource(app, Cartoon)
         token = login("coyote", scope={"cartoon": ["write"]})
 
         rv = client.post("/cartoon", headers={"Authorization": token})
         assert rv.status_code != 401
 
     def test_delete_resource_item(self, app, client):
-        add_resource(Cartoon, app)
+        add_resource(app, Cartoon)
         token = login("coyote", scope={"cartoon": ["delete"]})
 
         rv = client.delete("/cartoon", headers={"Authorization": token})
@@ -285,7 +285,7 @@ class TestOrgResource:
 
     def test_list_resource(self, app, client):
         _id = self.insert_data().id
-        add_resource(Todo, app)
+        add_resource(app, Todo)
 
         # Request to Acme endpoint
         token = login("coyote", "acme", scope={"todo": ["read"]})
@@ -306,7 +306,7 @@ class TestOrgResource:
 
     def test_get_resource(self, app, client):
         _id = self.insert_data().id
-        add_resource(Todo, app)
+        add_resource(app, Todo)
 
         # Request to R.R. Inc endpoint
         token = login("RoadRunner", "rrinc", scope={"todo": ["read"]})
@@ -328,7 +328,7 @@ class TestOrgResource:
         assert "org_id" not in data
 
     def test_add_resource(self, app, client):
-        add_resource(Todo, app)
+        add_resource(app, Todo)
 
         token = login("coyote", "acme", scope={"todo": ["write"]})
 
@@ -350,7 +350,7 @@ class TestOrgResource:
 
     def test_update_resource(self, app, client):
         _id = self.insert_data().id
-        add_resource(Todo, app)
+        add_resource(app, Todo)
 
         # Request to R.R. Inc endpoint with the same id
         token = login("RoadRunner", "rrinc", scope={"todo": ["write"]})
@@ -383,7 +383,7 @@ class TestOrgResource:
 
     def test_delete_resource(self, app, client):
         _id = self.insert_data().id
-        add_resource(Todo, app)
+        add_resource(app, Todo)
 
         # Request to R.R. Inc.
         token = login("RoadRunner", "rrinc", scope={"todo": ["delete"]})

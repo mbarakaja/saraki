@@ -1,10 +1,10 @@
-from flask import Flask
+from flask import Flask, Blueprint as _Blueprint
 from flask_sqlalchemy import SQLAlchemy
-from . import errors
-from . import config as _default_config
-from .api import signup_view, appbp
-from .model import database
-from .auth import Auth
+from saraki import errors
+from saraki import config as _default_config
+from saraki.model import database
+from saraki.auth import Auth
+from saraki.endpoints import add_resource
 
 
 class Saraki(Flask):
@@ -18,7 +18,7 @@ class Saraki(Flask):
         if auth:
             self.auth = auth() if callable(auth) else auth
             self.auth.init_app(self)
-            self.register_blueprint(appbp)
+            self.add_default_blueprints()
 
         if isinstance(db, SQLAlchemy):
             db.init_app(self)
@@ -31,5 +31,20 @@ class Saraki(Flask):
 
         database.session.commit()
 
+    def add_default_blueprints(self):
+        from saraki.api import appbp
+
+        self.register_blueprint(appbp)
+
     def add_default_endpoints(self):
+        from saraki.api import signup_view
+
         self.add_url_rule("/signup", "signup", signup_view, methods=["POST"])
+
+    def add_resource(self, modelcls, base_url=None, **options):
+        add_resource(self, modelcls, base_url=base_url, **options)
+
+
+class Blueprint(_Blueprint):
+    def add_resource(self, modelcls, base_url=None, **options):
+        add_resource(self, modelcls, base_url=base_url, **options)

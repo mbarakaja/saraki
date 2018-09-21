@@ -1,5 +1,6 @@
-from flask import jsonify, request, abort, Blueprint
+from flask import jsonify, request, abort
 from sqlalchemy.orm import joinedload
+from saraki import Blueprint
 from .auth import require_auth, current_user, current_org
 from .utility import generate_schema, json, export_from_sqla_object, Validator
 from .model import (
@@ -15,7 +16,6 @@ from .model import (
     RoleAbility,
     MemberRole,
 )
-from saraki.endpoints import add_resource
 
 
 user_schema = generate_schema(User, exclude=["canonical_username", "active"])
@@ -45,9 +45,8 @@ appbp = Blueprint("app", __name__)
 # Resources
 # ~~~~~~~~~
 
-add_resource(
+appbp.add_resource(
     Resource,
-    appbp,
     "resources",
     methods={"item": ["GET"], "list": ["GET"]},
     resource_name="app",
@@ -57,21 +56,16 @@ add_resource(
 # Action
 # ~~~~~~
 
-add_resource(
-    Action,
-    appbp,
-    "actions",
-    methods={"item": ["GET"], "list": ["GET"]},
-    resource_name="app",
+appbp.add_resource(
+    Action, "actions", methods={"item": ["GET"], "list": ["GET"]}, resource_name="app"
 )
 
 
 # Ability
 # ~~~~~~
 
-add_resource(
+appbp.add_resource(
     Ability,
-    appbp,
     "abilities",
     methods={"item": ["GET"], "list": ["GET"]},
     resource_name="app",
@@ -83,13 +77,12 @@ add_resource(
 # ~~~~~~~~~~~~~~~~~
 #
 
-add_resource(
-    Plan, appbp, "plans", methods={"item": ["GET"], "list": ["GET"]}, secure=False
+appbp.add_resource(
+    Plan, "plans", methods={"item": ["GET"], "list": ["GET"]}, secure=False
 )
 
-add_resource(
+appbp.add_resource(
     Plan,
-    appbp,
     "plans",
     resource_name="app",
     methods={"item": ["PATCH", "DELETE"], "list": ["POST"]},

@@ -204,11 +204,11 @@ def _import_data(model, data):
         import_data(model, data)
 
 
-def list_view_func(model_class, ident_prop, primary_key, schema, is_org, **kargs):
-    return model_class
+def list_view_func(modelcls, ident_prop, primary_key, schema, is_org, **kargs):
+    return modelcls
 
 
-def add_view_func(model_class, ident_prop, primary_key, schema, is_org, **kargs):
+def add_view_func(modelcls, ident_prop, primary_key, schema, is_org, **kargs):
     payload = request.get_json()
 
     if is_org:
@@ -219,7 +219,7 @@ def add_view_func(model_class, ident_prop, primary_key, schema, is_org, **kargs)
     if v.validate(payload) is False:
         raise ValidationError(v.errors)
 
-    model = model_class()
+    model = modelcls()
     data = v.normalized(payload)
     _import_data(model, data)
 
@@ -229,7 +229,7 @@ def add_view_func(model_class, ident_prop, primary_key, schema, is_org, **kargs)
     return model, 201
 
 
-def item_view(model_class, ident_prop, primary_key, schema, is_org, **kargs):
+def item_view(modelcls, ident_prop, primary_key, schema, is_org, **kargs):
     """Generic view function to handle operations on single resource items."""
 
     ident = {prop: kargs.get(prop) for prop in ident_prop}
@@ -238,7 +238,7 @@ def item_view(model_class, ident_prop, primary_key, schema, is_org, **kargs):
         ident["org_id"] = current_org.id
 
     try:
-        model = model_class.query.filter_by(**ident).one()
+        model = modelcls.query.filter_by(**ident).one()
     except NoResultFound:
         abort(404)
 
@@ -267,11 +267,11 @@ def item_view(model_class, ident_prop, primary_key, schema, is_org, **kargs):
 type_mapping = {int: "int", str: "string"}
 
 
-def _generate_route_rules(base_url, model_class, ident_prop, is_org=False):
+def _generate_route_rules(base_url, modelcls, ident_prop, is_org=False):
     list_rule = f"/orgs/<aud:orgname>/{base_url}" if is_org else f"/{base_url}"
     item_rule = f"{list_rule}/"
 
-    columns = [getattr(model_class, column_name) for column_name in ident_prop]
+    columns = [getattr(modelcls, column_name) for column_name in ident_prop]
 
     for column in columns:
         python_type = column.type.python_type
@@ -285,16 +285,15 @@ def _generate_route_rules(base_url, model_class, ident_prop, is_org=False):
 
 
 def add_resource(
-    model_class,
     app,
+    modelcls,
     base_url=None,
     ident=None,
     methods=None,
     secure=True,
     resource_name=None,
 ):
-    """
-    Register a resource and generate API endpoints to interact with it.
+    """ Register a resource and generate API endpoints to interact with it.
 
     The first parameter is a SQLAlchemy model class and the second can
     be a Flask app instance or a Blueprint instance.
@@ -354,7 +353,7 @@ def add_resource(
     To customize the base url (resource list part) use the ``base_url``
     parameter, for example::
 
-        add_resource(Product, app, 'products')
+        add_resource(ap, Product, 'products')
 
     The rendered route rules will be::
 
@@ -375,8 +374,8 @@ def add_resource(
         /orgs/<aud:orgname>/products
         /orgs/<aud:orgname>/products/<int:id>
 
-    :param model_class: SQLAlchemy model class.
     :param app: Flask or Blueprint instance.
+    :param modelcls: SQLAlchemy model class.
     :param base_url: The base url for the resource.
     :param ident: Names of the column used to identify a resource item.
     :param methods: Dict object with allowd HTTP methods for item and list resources.
@@ -384,23 +383,23 @@ def add_resource(
     :param resource_name: resource name required in token scope to access this resource.
     """
 
-    is_org = hasattr(model_class, "org_id")
+    is_org = hasattr(modelcls, "org_id")
 
     # The table name is used to generate flask endpoint names
-    table_name = model_class.__tablename__
+    table_name = modelcls.__tablename__
 
     # When resource_name is not provided use the name of the table
     resource_name = resource_name or table_name
 
     # Use the table name as default base URL
     base_url = base_url or "-".join(table_name.split("_"))
-    primary_key = inspect(model_class).primary_key
-    schema = generate_schema(model_class)
+    primary_key = inspect(modelcls).primary_key
+    schema = generate_schema(modelcls)
 
     primary_key = tuple(column.name for column in primary_key)
     ident = (ident,) if ident else primary_key
 
-    list_rule, item_rule = _generate_route_rules(base_url, model_class, ident, is_org)
+    list_rule, item_rule = _generate_route_rules(base_url, modelcls, ident, is_org)
 
     methods = methods or {}
 
@@ -409,7 +408,7 @@ def add_resource(
 
     defaults = {
         "schema": schema,
-        "model_class": model_class,
+        "modelcls": modelcls,
         "ident_prop": ident,
         "primary_key": primary_key,
         "is_org": is_org,
