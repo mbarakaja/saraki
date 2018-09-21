@@ -1,7 +1,7 @@
 from functools import wraps
 from json.decoder import JSONDecodeError
 
-from flask import request, abort, current_app
+from flask import request, abort
 from flask.json import loads as json_loads
 
 from sqlalchemy import inspect
@@ -148,15 +148,21 @@ class Collection:
             @wraps(f)
             def wrapper(*args, **kwargs):
 
-                fargs = f(*args, **kwargs)
-                Model = fargs[0] if type(fargs) == tuple else fargs
+                Model = f(*args, **kwargs)
+                filters = {}
+
+                if hasattr(Model, "org_id"):
+                    filters = {"org_id": current_org.id}
 
                 modifiers = self._parse_query_string(Model, request.args)
 
                 query = Model.query
 
                 if "filter" in modifiers:
-                    query = self._filter_modifier(query, modifiers["filter"])
+                    filters.update(modifiers.get("filter", {}))
+
+                if filters:
+                    query = self._filter_modifier(query, filters)
 
                 if "search" in modifiers:
                     query = self._search_modifier(Model, query, modifiers["search"])
@@ -165,7 +171,6 @@ class Collection:
                     query = self._sort_modifier(Model, query, modifiers["sort"])
 
                 page = modifiers.get("page", 1)
-
                 limit = min(modifiers.get("limit", default_limit), max_limit)
 
                 result = query.paginate(page, limit)
@@ -200,16 +205,7 @@ def _import_data(model, data):
 
 
 def list_view_func(model_class, ident_prop, primary_key, schema, is_org, **kargs):
-    filters = {"org_id": current_org.id} if is_org else {}
-
-    if hasattr(model_class, "export_data"):
-        return [
-            item.export_data() for item in model_class.query.filter_by(**filters).all()
-        ]
-    else:
-        return [
-            export_data(item) for item in model_class.query.filter_by(**filters).all()
-        ]
+    return model_class
 
 
 def add_view_func(model_class, ident_prop, primary_key, schema, is_org, **kargs):
@@ -422,7 +418,7 @@ def add_resource(
     # Resource list
     if "GET" in list_methods:
         endpoint = f"list_{table_name}"
-        view_func = json(list_view_func)
+        view_func = json(collection()(list_view_func))
 
         if secure:
             view_func = require_auth(resource_name)(view_func)

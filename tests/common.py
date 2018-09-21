@@ -1,9 +1,12 @@
 import jwt
+from contextlib import contextmanager
 from datetime import datetime, timedelta
+
 from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from sqlalchemy import ForeignKey, func
 from sqlalchemy.orm import relationship
 
+from saraki.auth import _request_ctx_stack, User, Org
 from saraki.model import BaseModel, Model, database
 
 
@@ -124,6 +127,17 @@ def login(username, orgname=None, scope=None):
     token = jwt.encode(payload, "secret").decode()
 
     return f"JWT {token}"
+
+
+@contextmanager
+def auth_ctx(username, orgname=None):
+
+    _request_ctx_stack.top.current_user = User(id=1, username=username)
+
+    if orgname:
+        _request_ctx_stack.top.current_org = Org(id=1, orgname=orgname)
+
+    yield
 
 
 def reset_secuence(table, column_name="id", schema_name="public"):

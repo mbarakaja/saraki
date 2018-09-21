@@ -1,17 +1,18 @@
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch, call
 from flask import Flask, request
 from flask.json import dumps
 from sqlalchemy import Column, Integer
 from sqlalchemy.sql.expression import or_
 from sqlalchemy import func, Text
 
+from saraki.auth import current_org
 from saraki.endpoints import add_resource, collection
 from saraki.model import database, Org, Model
 from saraki.exc import ValidationError
 from saraki.testing import get_view_function, assert_allowed_methods
 
-from common import Person, Product, OrderLine, Cartoon, Todo, login
+from common import Person, Product, OrderLine, Cartoon, Todo, login, auth_ctx
 
 
 class Test_add_resource:
@@ -659,3 +660,43 @@ class TestCollection:
         with request_ctx("/"):
             with pytest.raises(AttributeError, match="Inside of export_data method"):
                 collection()(lambda: TestTable)()
+
+    @patch.object(Todo, "query", new=mock_query())
+    def test_basic_request_with_org_model(self, app):
+
+        with app.test_request_context("/"):
+            with auth_ctx("coyote", "acme"):
+                current_org_id = current_org.id
+                collection()(lambda: Todo)()
+
+        Todo.query.filter_by.assert_called_with(org_id=current_org_id)
+
+    @patch.object(Todo, "query", new=mock_query())
+    def test_filter_modifier_with_org_model(self, request_ctx):
+
+        with request_ctx('/?filter={"task": "Do something"}'):
+            with auth_ctx("coyote", "acme"):
+                current_org_id = current_org.id
+                collection()(lambda: Todo)()
+
+        Todo.query.filter_by.assert_called_with(
+            org_id=current_org_id, task="Do something"
+        )
+
+    @patch.object(Todo, "query", new=mock_query())
+    def test_search_modifier_with_org_model(self, request_ctx):
+
+        with request_ctx('/?search={"t": "black", "f": ["task"]}'):
+            with auth_ctx("coyote", "acme"):
+                current_org_id = current_org.id
+                collection()(lambda: Todo)()
+
+        Todo.query.filter_by.assert_called_with(org_id=current_org_id)
+        Todo.query.filter.assert_called()
+
+        expected = or_(Todo.task.ilike("%black%"))
+        original = Todo.query.filter.call_args[0][0]
+        assert original.compare(expected)
+
+        # The query should be filtered by the organization id first
+        assert Todo.query.method_calls[0] == call.filter_by(org_id=current_org_id)
