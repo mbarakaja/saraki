@@ -25,6 +25,7 @@ twine = "*"
 braulio = "*"
 black = "*"
 "flake8-bugbear" = "*"
+pallets-sphinx-themes = "*"
 
 [requires]
 python_version = "3.6"

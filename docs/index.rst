@@ -1,17 +1,17 @@
-Welcome to Saraki's documentation!
-======================================
+Saraki
+======
+
+
+Welcome to this documentation. Saraki is a framework for
+multi-tenant application.
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
-   readme
-   installation
-   usage
-   modules
-   contributing
-   authors
-   history
+   quick
+   auth
+
 
 Indices and tables
 ==================

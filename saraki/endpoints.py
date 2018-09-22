@@ -192,6 +192,7 @@ class Collection:
         return decorator
 
 
+#: collection decorator
 collection = Collection()
 
 

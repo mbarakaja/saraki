@@ -1,6 +1,13 @@
-======
-Saraki
-======
+Saraki (wip)
+============
+
+A framework for multi-tenant applications
+
+This framework aims to help you build as quick as possible multi-tenant
+applications.
+
+This is a work in progress, so things could change and break, but you can try
+it if you want.
 
 
 .. image:: https://img.shields.io/pypi/v/saraki.svg
@@ -14,28 +21,10 @@ Saraki
         :alt: Documentation Status
 
 
-.. image:: https://pyup.io/repos/github/mbarakaja/saraki/shield.svg
-     :target: https://pyup.io/repos/github/mbarakaja/saraki/
-     :alt: Updates
+Work in progress
+~~~~~~~~~~~~~~~~
 
-
-
-A web application helper
-
-
-* Free software: MIT license
-* Documentation: https://saraki.readthedocs.io.
-
-
-Features
---------
-
-* TODO
-
-Credits
--------
-
-This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
-
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+* User management
+* Organization management
+* Membership management
+* Authentication and Authorization system

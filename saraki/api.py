@@ -309,7 +309,7 @@ def add_role(orgname):
 @require_auth("org", "manage")
 @json
 def update_role(orgname, id):
-    """Updates an organization role. This endpoint also adds and removes
+    """ Updates an organization role. This endpoint also adds and removes
     abilities, by passing a list with the abilities that you want to add and
     omitting those that you want to remove. For instance, having the next role;
 
@@ -328,7 +328,7 @@ def update_role(orgname, id):
 
     .. code-block:: json
 
-    {
+        {
             "name": "My new name",
             "abilities": [
                 {"action_id": 1, "resource_id": 4},
