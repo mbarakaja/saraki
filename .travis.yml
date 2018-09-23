@@ -8,14 +8,14 @@ deploy:
   distributions: sdist bdist_wheel
   user: mbarakaja
   password:
-    secure: QuNMQ6zgk8B4K6bZ84b0pp6DB/MzhaUcR3+uVW/KDvbRyRDkoAHwhJre2Np0Hvh5Gla/Ko2swLviSoQTOgZ4E4oGsyuO7Kh8mAS8hSq6FiPDRt4ekelibfTCcQDtm71s8OTm+GJgS3bHMLMzawQwSyTfLec3qj67VYuWxSBPizOCkRR1KJDEHQDMK4hj4FqwmZ+LddMpRlktC40yM2Al82njP6GiPE9LfijrZ7o7TaYQ8ruhQom8OqEg8gkDRkxKMRVnOYeNfcthXwDq9OuG6nCmPze8m+hTeqeg7zJS0cwO7bsU1fv04zLBOBNsIv8EHS2sV4atxdqlr7qFPwl6W+ptKxiLV+7qYKGJrJzQ3MzTPNjjHnl6S7n44fWBjFF15olChKWWnKRGH6r2J0Gq6RzfdVfHY5mUcZ5MIiyviotIaz0JuZciz21AD23cawfEUxyDgq1pUKNG6uyK8f3OJ4FzKPIJbYSk69BdMOh25vj3PNyRc/yFi/FT1CrpD3wH2cSfCExnP/HzS29X8KmizKz9K60NBVUYF7B2KKAU1T+/mGsJzDqv7IywJ2aGCHiROD++I8s4dmB6PVs4y4KJIO7l78FQHQc2T0OLLCmzN2QoRwOJch08QdSFjib3QHKhtHoEPDh92L8fEM6ITNaDkZdd9ZOJTfpsAsN7iGzStnk=
+    secure: te0d7/NbcUiKXxTqwnTEDWpQdRYJH/vFr6TJ1A4DbHnMl6ZruZJUvZxzikcE4VyQ8dqbMy65gOG10DUTSLHVxFB154QcerZCL2bAEs39Ll4YgWyV/2eI0tGO9qGogaqbAvAwi1FuykwB6ZSBilGPOaOjwg14iW+vgSzItjbw/SujvTfxCh2YQbrCpJhVDVhuXO8yIpaMDC+x8/R2b7oyKlXWpCaVaAhaiJiEuYVoC8yT4lZ9FxYLcF+biw9b06alxWEMqpl1EyJk3t1JZ/DRVmXxVhvnhgKOivKBvcK0EPLXQKjCWRMPC5eGuApCj3RCeBImxGj0N6ZIUblKpk3Wt2lMXrNlXs6swnrj+tj0nHnuOLi4fLzyDfVdzCcpP0lRZZW6Mo/CeOcD/w8kF8qYbZKOoRIsARHeigi8WdAkVllqVq3kZXIBrqVMljqtdFJsEEiX6vGvSvvHT+H/iZ+2dilF7e+2DZDcxK5aOQ55+2k/7vfoQNLyGofdnswrOt9X3CciDlps/7hPwq7j7AarL+qEVAk7UXa/zuB70K4k4zLy/KI8ieHrm0QYpz3fzkJd7Q2uo5q/YMuQO8x/2sbJpZTpW340v9juPS4aqfUWp5g7TD+EZKqIoXv0Kwg6NYkLvxVjansZsFe/wBrIIV/LCpQUDfsE8F+U5Rykt716fEk=
   on:
     tags: true
     repo: mbarakaja/saraki
     python: 3.6
 services:
-  - postgresql
+- postgresql
 before_script:
-  - psql -c 'create database test;' -U postgres
+- psql -c 'create database test;' -U postgres
 env:
-  - TEST_DATABASE_URI=postgresql://postgres:@localhost/test
+- TEST_DATABASE_URI=postgresql://postgres:@localhost/test
