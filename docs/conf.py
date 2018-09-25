@@ -32,7 +32,16 @@ import saraki
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
-extensions = ['sphinx.ext.autodoc', 'sphinx.ext.viewcode', 'pallets_sphinx_themes']
+extensions = [
+    'sphinx.ext.autodoc',
+    'sphinx.ext.viewcode',
+    'sphinx.ext.intersphinx',
+    'pallets_sphinx_themes'
+]
+
+intersphinx_mapping = {
+    'flask-sqlalchemy': ('http://flask-sqlalchemy.pocoo.org/2.3/', None),
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
