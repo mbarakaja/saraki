@@ -27,12 +27,13 @@ class ModelMixin:
 
 
 class Model(BaseModel, ModelMixin):
+    """Abstract class from which all your model classes should extend."""
 
     __abstract__ = True
 
 
 class Plan(Model):
-    """Plans available for your application."""
+    """Available plans in your application."""
 
     __tablename__ = "plan"
 
@@ -50,10 +51,11 @@ class Plan(Model):
 
 
 class User(Model):
-    """Application user accounts."""
+    """User accounts."""
 
     __tablename__ = "user"
 
+    #: Primary key
     id = Column(Integer, primary_key=True)
 
     #: Email associated with the account. Must be unique.
@@ -125,7 +127,7 @@ class User(Model):
 
 
 class Org(Model):
-    """Organization accounts registered and managed by the application.
+    """Organization accounts.
 
     This table registers all organizations being managed by the application and
     owned by at least one user account registered in the :class:`Membership`
@@ -198,6 +200,8 @@ class Membership(Model):
 class Action(Model, ModelMixin):
     """Actions performed across the application like manage, create, read,
     update, delete, follow, etc.
+
+    This table stores all actions registered using :func:`~saraki.auth.require_auth`.
     """
 
     __tablename__ = "action"
@@ -342,7 +346,7 @@ class Role(Model):
     #: Primary Key.
     id = Column(Integer, primary_key=True)
 
-    #: A name for the paper, Cashier for example.
+    #: A name for the role, Cashier for example.
     name = Column(String(80), nullable=False)
 
     #: A long text that describes what this role does.

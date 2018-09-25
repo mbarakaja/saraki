@@ -374,6 +374,106 @@ def _authenticate(orgname=None):
 
 
 def require_auth(resource=None, action=None, parent_resource=None):
+    """ Decorator to restrict view function access only to requests with enough
+    authorization.
+
+    A valid request must meet the following conditions:
+
+    1.  The request header must have the ``Authorization`` header with a valid JSON
+        Web Token.
+
+    2.  The token ``sub`` claim must contain a username registered in the
+        application. If ``aud`` claim is present the value must be an
+        orgname also registered in the application.
+
+    3.  The token scope must have enough privileges to access the view function
+        being accessed.
+
+    If the parameter **resource** is not provided, the token scope won't be
+    verified.
+
+    The **resource** parameter locks an endpoint to access tokens that contain that
+    resource or any other parent resource in their ``scp`` claim. Let's look to
+    at an example to illustrate how this work:
+
+    .. code-block:: python
+
+        @require_auth("cartoon")
+        def view_cartoons():
+            pass
+
+        @require_auth("movie", parent_resource="catalog")
+        def view_movies():
+            pass
+
+        @require_auth("comic")
+        def view_comics():
+            pass
+
+    And a hyipothetical access token ``scp`` claim:
+
+    .. code-block:: json
+
+        {
+            "catalog": ["read"],
+            "cartoon": ["read"]
+        }
+
+    The above access token would be authorized to access to ``view_cartoons``
+    and ``view_movies`` but not to ``view_comics``. In the case of
+    ``view_cartoons``, the resource ``cartoon`` is present in the token scope.
+    The resource ``movie`` is not present but ``catalog`` which is a parent of
+    it is present, so that’s why ``view_movies`` can be accessed.
+    ``view_comics`` is not accessible because neither ``comic`` nor a parent of
+    it is present.
+
+    The **action** parameter locks the endpoint to a specific action, for
+    instance, read, create, update, delete, etc. If this parameter is omitted,
+    the HTTP method of the route endpoint definition will be used:
+
+    .. code-block:: python
+
+        @app.route('/friends')
+        @require_auth('private', 'follow')
+        def endpoint_handler():
+            pass
+
+        @app.route('/friends', methods=['DELETE'])
+        @require_auth('private')
+        def endpoint_handler():
+            pass
+
+    The first example above, requires the resource `private` with `follow`
+    action like the example below:
+
+    .. code-block:: json
+
+        {"private": ["follow"]}
+
+    The second example:
+
+    .. code-block:: json
+
+        {"resource": ["delete"]}
+
+
+    The last argument ``parent_resource`` is optional. It defines the parent
+    resource of the endpoint. That means that if an access token has a resource
+    matching the parent resource, but not the required resource, it still pass the
+    validation. For instance, ``@require_auth('resource', 'action',
+    parent='parent')`` will pass with the next access token:
+
+    .. code-block:: json
+
+        {"parent": ["action"]}
+
+    Whenever a request with an unauthorized access token reaches a locked view
+    function an :class:`~saraki.exc.AuthorizationError` exception is raised.
+
+    :param resource: The name of the resource
+    :param action: The action that can be performed on the resource.
+    :param parent_resource: The parent resource.
+    """
 
     if action and not resource:
         raise ProgrammingError(f"You passed an action '{action}' without a resource")

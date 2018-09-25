@@ -28,8 +28,14 @@ def is_sqla_obj(obj):
 
 
 def import_into_sqla_object(model_instance, data):
-    """Import a dictionary, assigning each item value that match to a
-    column name of the object entity class.
+    """ Import a dictionary into a SQLAlchemy model instance. Only those
+    keys in `data` that match a column name in the model instance are
+    imported, everthing else is omitted.
+
+    This function does not validate the values coming in `data`.
+
+    :param model_instance: A SQLAlchemy model instance.
+    :param data: A python dictionary.
     """
 
     mapper = inspect(model_instance.__class__)
@@ -47,7 +53,7 @@ def _get_column_default(c):
 
 
 class ExportData:
-    """Creates a callable object that convert SQLAlchemy model instances
+    """ Creates a callable object that convert SQLAlchemy model instances
     to dictionaries.
     """
 
@@ -133,27 +139,37 @@ class ExportData:
         return data
 
 
+#: Converts SQLAlchemy models into python serializable objects.
+#:
+#: This is an instance of :class:`ExportData` so head on to the
+#: :meth:`~ExportData.__call__` method to known how this work. This instances
+#: globally removes columns named ``org_id``.
 export_from_sqla_object = ExportData(exclude=("org_id",))
 
 
 def generate_schema(model_class, include=(), exclude=()):
-    """Inspect a SQLAlchemy Model Class and return a validation schema
-    to be used with the Cerberus library. The schema is generated mapping some
-    Cerberus rules with SQLAlchemy model class column types and constraints, as
-    follow:
+    """ Inspects a SQLAlchemy model class and returns a validation schema to be
+    used with the Cerberus library. The schema is generated mapping column
+    types and constraints to Cerberus rules:
 
-    ================ =======================================================
-    Cerberus Rule    Generated value
-    ================ =======================================================
-    type             Based on the SQLAlchemy column class used (String,
-                     Integer, etc).
-    readonly         **True** if the column is primary key.
-    required         **True** if the constraints ``Column.nullable`` is set to
-                     **False** and ``Column.default`` and
-                     ``Column.server_default`` are set to **None**.
-    default          Not included in the output. This is handled by
-                     SQLAlchemy or by the databse engine.
-    ================ =======================================================
+    +---------------+------------------------------------------------------+
+    | Cerberus Rule | Based on                                             |
+    +===============+======================================================+
+    | type          | SQLAlchemy column class used (String, Integer, etc). |
+    +---------------+------------------------------------------------------+
+    | readonly      | **True** if the column is primary key.               |
+    +---------------+------------------------------------------------------+
+    | required      | **True** if ``Column.nullable`` is **False** or      |
+    |               | ``Column.default`` and ``Column.server_default``     |
+    |               | **None**.                                            |
+    +---------------+------------------------------------------------------+
+    | default       | Not included in the output. This is handled by       |
+    |               | SQLAlchemy or by the database engine.                |
+    +---------------+------------------------------------------------------+
+
+    :param model_class: SQLAlchemy model class.
+    :param include: List of columns to include in the output.
+    :param exclude: List of column to exclude from the output.
     """
 
     schema = {}
@@ -199,14 +215,14 @@ def generate_schema(model_class, include=(), exclude=()):
 
 
 def json(func):
-    """Decorator for view functions to return a JSON response.
+    """ Decorator for view functions to return JSON responses.
 
     When the incoming request is a POST request, it validates the content_type
     and payload before calling the view function. Next, the returned value of
     the view function is transformed into a JSON response.
 
     The view function can return the response payload, status code and headers
-    in the next ways:
+    in various forms:
 
     1.  A single object. Can be any JSON serializable object, a Flask Response
         object, or a SQLAlchemy model:
@@ -215,19 +231,17 @@ def json(func):
 
             return {}
 
-            # custom Response
-            return make_response(...)
+            return make_response(...)  # custom Response
 
-            # SQLAlchemy model instance
-            return Mode.query.filter_by(prop=prop).first()
+            return Mode.query.filter_by(prop=prop).first()  # SQLAlchemy model instance
 
             return []
 
             return "string response"
 
-    2.  A tuple in the form **(payload, status, headers)**, or **(payload, headers)**
-        the response payload can be any python built-in type, or a SQLAlchemy based
-        model object.:
+    2.  A tuple in the form **(payload, status, headers)**, or **(payload,
+        headers)**. The payload can be any python built-in type, or a SQLAlchemy
+        based model object.:
 
         .. code-block:: python
 

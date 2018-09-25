@@ -139,7 +139,7 @@ three defined endpoints above:
         },
     }
 
-.. auth-coverters::
+.. _auth-converters:
 
 Variable Converters
 -------------------
