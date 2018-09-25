@@ -1,18 +1,30 @@
 import pytest
+from json import loads
 from unittest.mock import MagicMock, patch, call
-from flask import Flask, request
+from werkzeug.exceptions import UnsupportedMediaType, BadRequest
+from flask import Flask, request, make_response
 from flask.json import dumps
 from sqlalchemy import Column, Integer
 from sqlalchemy.sql.expression import or_
 from sqlalchemy import func, Text
 
 from saraki.auth import current_org
-from saraki.endpoints import add_resource, collection
+from saraki.endpoints import add_resource, collection, json
 from saraki.model import database, Org, Model
 from saraki.exc import ValidationError
 from saraki.testing import get_view_function, assert_allowed_methods
 
-from common import Person, Product, OrderLine, Cartoon, Todo, login, auth_ctx
+from common import (
+    DummyBaseModel,
+    DummyModel,
+    Person,
+    Product,
+    OrderLine,
+    Cartoon,
+    Todo,
+    login,
+    auth_ctx,
+)
 
 
 class Test_add_resource:
@@ -700,3 +712,149 @@ class TestCollection:
 
         # The query should be filtered by the organization id first
         assert Todo.query.method_calls[0] == call.filter_by(org_id=current_org_id)
+
+
+@pytest.mark.wip
+class TestJson:
+    @pytest.mark.parametrize(
+        "returned, expected",
+        [
+            ({"id": 1}, {"id": 1}),
+            ([1, 2, 3], [1, 2, 3]),
+            (DummyBaseModel(id=2), {"id": 2}),
+            (DummyModel(id=2), {"id": 2}),
+            ("Hello", "Hello"),
+            (1, 1),
+            (None, None),
+        ],
+    )
+    def test_return_single_objects(self, returned, expected, request_ctx):
+        @json
+        def view_func():
+            return returned
+
+        with request_ctx("/"):
+            rv = view_func()
+
+        assert rv.status_code == 200
+        assert rv.content_type == "application/json"
+        assert loads(rv.data) == expected
+
+    @pytest.mark.parametrize(
+        "returned, expected",
+        [
+            (({"id": 1}, 500), (500, {"id": 1})),
+            (([1, 2, 3], 404), (404, [1, 2, 3])),
+            (("Hello", 201), (201, "Hello")),
+            ((1, 201), (201, 1)),
+            ((None, 201), (201, None)),
+            ((DummyBaseModel(id=2), 201), (201, {"id": 2})),
+            ((DummyModel(id=2), 201), (201, {"id": 2})),
+            (({"id": 14}, {"X-Header": "value"}), (200, {"id": 14})),
+        ],
+        ids=[
+            "dict type, status",
+            "list type, status",
+            "string type, status",
+            "integer type, status",
+            "None type, status",
+            "model without export_data, status",
+            "model with export_data, status",
+            "dict, headers",
+        ],
+    )
+    def test_status_code(self, returned, expected, request_ctx):
+        view_func = json(lambda: returned)
+
+        with request_ctx("/"):
+            rv = view_func()
+
+        assert rv.status_code == expected[0]
+        assert rv.content_type == "application/json"
+        assert loads(rv.data) == expected[1]
+
+    @pytest.mark.parametrize(
+        "returned, expected",
+        [
+            (({"id": 1}, 500, {"X-header": "x-value"}), (500, {"id": 1})),
+            (([1, 2, 3], 404, {"X-header": "x-value"}), (404, [1, 2, 3])),
+            ((DummyBaseModel(id=2), 201, {"X-header": "x-value"}), (201, {"id": 2})),
+            ((DummyModel(id=2), 201, {"X-header": "x-value"}), (201, {"id": 2})),
+            (("Hello", 201, {"X-header": "x-value"}), (201, "Hello")),
+            ((1, 201, {"X-header": "x-value"}), (201, 1)),
+            ((None, 201, {"X-header": "x-value"}), (201, None)),
+        ],
+    )
+    def test_return_extra_http_header(self, returned, expected, request_ctx):
+        @json
+        def view_func():
+            return returned
+
+        with request_ctx():
+            rv = view_func()
+
+        assert rv.status_code == expected[0]
+        assert loads(rv.data) == expected[1]
+        assert rv.content_type == "application/json"
+        assert rv.headers["X-header"] == "x-value"
+
+    def test_return_custom_response(self, request_ctx):
+        @json
+        def index():
+            return make_response("Hello world", 201)
+
+        with request_ctx("/"):
+            rv = index()
+
+        assert rv.status_code == 201
+        assert rv.data == b"Hello world"
+        assert rv.content_type != "application/json"
+
+    def test_post_request_with_wrong_content_type(self, request_ctx):
+        @json
+        def view_func():
+            pass
+
+        error_message = "application/json mimetype expected"
+
+        with request_ctx(method="POST", content_type="text/plain"):
+            with pytest.raises(UnsupportedMediaType, match=error_message):
+                view_func()
+
+    def test_post_request_with_invalid_json_object(self, request_ctx):
+        @json
+        def view_func():
+            pass
+
+        error_message = "The request payload has an invalid JSON object"
+        params = {
+            "method": "POST",
+            "content_type": "application/json",
+            "data": "{'prop': 'value'}",
+        }
+
+        with request_ctx(**params):
+            with pytest.raises(BadRequest, match=error_message):
+                view_func()
+
+    def test_post_request_with_valid_json_object(self, request_ctx):
+        @json
+        def view_func():
+            pass
+
+        config = {"method": "POST", "content_type": "application/json", "data": "{}"}
+
+        with request_ctx(**config):
+            view_func()
+
+    @patch("saraki.endpoints.is_sqla_obj", return_value=True)
+    def test_model_class_export_data_with_exception(self, is_sqla_obj, request_ctx):
+        class Fake:
+            def export_data(self, include=None, exclude=None):
+                raise AttributeError("Inside of export_data method")
+
+        view_func = json(lambda: Fake())
+
+        with request_ctx("/"):
+            with pytest.raises(AttributeError, match="Inside of export_data method"):
+                view_func()

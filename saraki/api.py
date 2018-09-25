@@ -1,8 +1,9 @@
 from flask import jsonify, request, abort
 from sqlalchemy.orm import joinedload
 from saraki import Blueprint
+from .endpoints import json
 from .auth import require_auth, current_user, current_org
-from .utility import generate_schema, json, export_from_sqla_object, Validator
+from .utility import generate_schema, export_from_sqla_object, Validator
 from .model import (
     database,
     Plan,

@@ -1,9 +1,9 @@
 from functools import wraps
 from json.decoder import JSONDecodeError
 
-from flask import request, abort
+from flask import request, abort, jsonify
 from flask.json import loads as json_loads
-
+from flask.wrappers import Response
 from sqlalchemy import inspect
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import func, Text
@@ -14,11 +14,109 @@ from saraki.exc import ValidationError
 from saraki.auth import require_auth, current_org
 from saraki.utility import (
     Validator,
-    json,
+    is_sqla_obj,
     generate_schema,
     export_from_sqla_object as export_data,
     import_into_sqla_object as import_data,
 )
+
+
+def json(func):
+    """ Decorator for view functions to return JSON responses.
+
+    When the incoming request is a POST request, it validates the content_type
+    and payload before calling the view function. Next, the returned value of
+    the view function is transformed into a JSON response.
+
+    The view function can return the response payload, status code and headers
+    in various forms:
+
+    1.  A single object. Can be any JSON serializable object, a Flask Response
+        object, or a SQLAlchemy model:
+
+        .. code-block:: python
+
+            return {}
+
+            return make_response(...)  # custom Response
+
+            return Mode.query.filter_by(prop=prop).first()  # SQLAlchemy model instance
+
+            return []
+
+            return "string response"
+
+    2.  A tuple in the form **(payload, status, headers)**, or **(payload,
+        headers)**. The payload can be any python built-in type, or a SQLAlchemy
+        based model object.:
+
+        .. code-block:: python
+
+            # payload, status
+
+            return {}, 201
+
+            return [], 201
+
+            return '...', 400
+
+            # payload, status, headers
+
+            return {}, 201, {'X-Header': 'content'}
+
+            # payload, headers
+
+            return {}, {'X-Header': 'content'}
+    """
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+
+        if request.method == "POST":
+            if not request.is_json:
+                abort(415, "application/json mimetype expected")
+
+            if request.get_json(silent=True) is None:
+                abort(400, "The request payload has an invalid JSON object")
+
+        ro = func(*args, **kwargs)  # returned object
+
+        if type(ro) != tuple:
+            if isinstance(ro, (int, bool, str, list, dict, list)):
+                return jsonify(ro)
+
+            if isinstance(ro, Response):
+                return ro
+
+            ro = (ro,)
+
+        payload, status, headers = ro + (None,) * (3 - len(ro))
+
+        if type(status) != int:
+            headers, status = status, None
+
+        if is_sqla_obj(payload):
+            try:
+                payload = payload.export_data()
+            except AttributeError as e:
+                # If the method exist, the exception comes inside of it.
+                if hasattr(payload, "export_data"):
+                    # So re-raise the exception.
+                    raise e
+
+                payload = export_data(payload)
+
+        response_object = jsonify(payload)
+
+        if status:
+            response_object.status_code = status
+
+        if headers:
+            response_object.headers.extend(headers)
+
+        return response_object
+
+    return wrapper
 
 
 class Collection:
