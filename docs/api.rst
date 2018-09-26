@@ -39,6 +39,19 @@ Authorization
 .. autofunction:: saraki.require_auth
 
 
+Endpoints
+---------
+
+.. module:: saraki.endpoints
+
+.. autofunction:: json
+.. autofunction:: collection
+.. autofunction:: add_resource
+
+.. autoclass:: Collection
+    :members:
+
+
 Model
 -----
 
@@ -63,7 +76,6 @@ Utility
 
 .. module:: saraki.utility
 
-.. autofunction:: json
 .. autofunction:: import_into_sqla_object
 .. autofunction:: export_from_sqla_object
 .. autofunction:: generate_schema

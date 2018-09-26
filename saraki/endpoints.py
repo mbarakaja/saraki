@@ -120,16 +120,17 @@ def json(func):
 
 
 class Collection:
-    """ Creates a decorator for collection endpoints.
+    """ Creates a callable object to decorate collection endpoints.
 
-    View functions decorated with this decorator must return a SQLAlchemy
-    declarative class. This decorator can handle filtering, search, pagination
+    View functions decorated with this decorator must return an SQLAlchemy
+    declarative class. This decorator can handle filtering, search, pagination,
     and sorting using HTTP query strings.
 
     This is implemented as a class to extend or change the format of the query
-    strings.
+    strings. Usually, you will need just one instance of this class in the
+    entire application.
 
-    Usage:
+    Example:
 
     .. code-block:: python
 
@@ -290,7 +291,8 @@ class Collection:
         return decorator
 
 
-#: collection decorator
+#: Decorator to handle collection endpoints. This is an instance of
+#: :class:`Collection` so head on to that class to learn more how to use it.
 collection = Collection()
 
 
@@ -392,12 +394,14 @@ def add_resource(
     secure=True,
     resource_name=None,
 ):
-    """ Register a resource and generate API endpoints to interact with it.
+    """ Registers a resource and generates API endpoints to interact with it.
 
-    The first parameter is a SQLAlchemy model class and the second can
-    be a Flask app instance or a Blueprint instance.
+    The first parameter can be a Flask app or a Blueprint instance where routes
+    rules will be registered. The second parameter is a SQLAlchemy model class.
 
-    Let start with a code example::
+    Let start with a code example:
+
+    .. code-block:: python
 
         class Product(Model):
             __tablename__ = 'product'
@@ -439,7 +443,7 @@ def add_resource(
             order_id = Column(Integer, primary_key=True)
             product_id = Column(Integer, primary_key=True)
 
-        add_resource(Product, app)
+        add_resource(OrderLine, app)
 
     The route rules will be::
 
@@ -450,18 +454,18 @@ def add_resource(
     base url.
 
     To customize the base url (resource list part) use the ``base_url``
-    parameter, for example::
+    parameter::
 
-        add_resource(ap, Product, 'products')
+        add_resource(app, Product, 'products')
 
-    The rendered route rules will be::
+    Which renders::
 
         /products
         /products/<int:id>
 
-    By default, all endpoints are secured using the :meth:`~saraki.auth.require_auth`
-    decorator. Once again, the table name is used for the resource parameter of
-    require_auth, unless the resource_name parameter are provided.
+    By default, all endpoints are secured with :func:`~saraki.require_auth`.
+    Once again, the table name is used for the resource parameter of
+    :func:`~saraki.require_auth`, unless the ``resource_name`` parameter is provided.
 
     To disable this behavior pass ``secure=False``.
 
@@ -472,6 +476,13 @@ def add_resource(
 
         /orgs/<aud:orgname>/products
         /orgs/<aud:orgname>/products/<int:id>
+
+    .. admonition:: Notice
+
+       If you pass ``secure=False`` and an organization model class,
+       :data:`~saraki.current_org` and :data:`~saraki.current_user` won't be
+       available and the generated view functions will break.
+
 
     :param app: Flask or Blueprint instance.
     :param modelcls: SQLAlchemy model class.
