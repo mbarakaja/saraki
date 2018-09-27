@@ -2,22 +2,24 @@ import os
 from datetime import timedelta
 
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+class Config:
+    def __init__(self):
+        self.SECRET_KEY = os.getenv("SRK_SECRET_KEY")
 
-SERVER_NAME = os.getenv("SERVER_NAME")
+        self.SERVER_NAME = os.getenv("SRK_SERVER_NAME")
 
-SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URI")
+        self.SQLALCHEMY_DATABASE_URI = os.getenv("SRK_DATABASE_URI")
 
-SQLALCHEMY_TRACK_MODIFICATIONS = False
+        self.SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-JWT_LEEWAY = timedelta(seconds=10)
+        self.JWT_AUTH_HEADER_PREFIX = "JWT"
 
-JWT_ALGORITHM = "HS256"
+        self.JWT_ALGORITHM = "HS256"
 
-JWT_EXPIRATION_DELTA = timedelta(seconds=300)
+        self.JWT_LEEWAY = timedelta(seconds=10)
 
-JWT_AUTH_HEADER_PREFIX = "JWT"
+        self.JWT_EXPIRATION_DELTA = timedelta(seconds=300)
 
-JWT_ISSUER = SERVER_NAME
+        self.JWT_ISSUER = self.SERVER_NAME
 
-JWT_REQUIRED_CLAIMS = ["exp", "iat", "sub"]
+        self.JWT_REQUIRED_CLAIMS = ["exp", "iat", "sub"]

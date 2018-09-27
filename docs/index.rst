@@ -11,6 +11,7 @@ multi-tenant application.
 
     quick
     auth
+    config
     api
     history
 

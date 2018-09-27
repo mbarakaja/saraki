@@ -1,7 +1,7 @@
 from flask import Flask, Blueprint as _Blueprint
 from flask_sqlalchemy import SQLAlchemy
 from saraki import errors
-from saraki import config as _default_config
+from saraki.config import Config
 from saraki.model import database
 from saraki.auth import Auth
 from saraki.endpoints import add_resource
@@ -12,7 +12,7 @@ class Saraki(Flask):
 
         super(Saraki, self).__init__(import_name, **kargs)
 
-        self.config.from_object(_default_config)
+        self.config.from_object(Config())
         self.add_default_endpoints()
 
         if auth:
