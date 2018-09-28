@@ -415,6 +415,32 @@ class TestOrgResource:
         assert rv.status_code == 200
         assert Todo.query.get(_id) is None
 
+    def test_default_authorized_parent_resource(self, app, client):
+        _id = self.insert_data().id
+        add_resource(app, Todo)
+
+        # manually collect resource/action registered using require_auth.
+        app.auth._collect_metadata()
+
+        token = login("coyote", "acme", scope={"org": ["read"]})
+        headers = {"Authorization": token}
+        rv = client.get(f"/orgs/acme/todo/{_id}", headers=headers)
+
+        assert rv.status_code == 200
+
+    def test_custom_authorized_parent_resource(self, app, client):
+        _id = self.insert_data().id
+        add_resource(app, Todo, parent_resource="theboss")
+
+        # manually collect resource/action registered using require_auth.
+        app.auth._collect_metadata()
+
+        token = login("coyote", "acme", scope={"theboss": ["read"]})
+        headers = {"Authorization": token}
+        rv = client.get(f"/orgs/acme/todo/{_id}", headers=headers)
+
+        assert rv.status_code == 200
+
 
 def mock_query():
     query = MagicMock(
@@ -714,7 +740,6 @@ class TestCollection:
         assert Todo.query.method_calls[0] == call.filter_by(org_id=current_org_id)
 
 
-@pytest.mark.wip
 class TestJson:
     @pytest.mark.parametrize(
         "returned, expected",

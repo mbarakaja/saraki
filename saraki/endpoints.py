@@ -393,6 +393,7 @@ def add_resource(
     methods=None,
     secure=True,
     resource_name=None,
+    parent_resource=None,
 ):
     """ Registers a resource and generates API endpoints to interact with it.
 
@@ -530,7 +531,13 @@ def add_resource(
         view_func = json(collection()(list_view_func))
 
         if secure:
-            view_func = require_auth(resource_name)(view_func)
+            parent_resource = (
+                parent_resource if parent_resource else "org" if is_org else None
+            )
+
+            view_func = require_auth(resource_name, parent_resource=parent_resource)(
+                view_func
+            )
 
         app.add_url_rule(list_rule, endpoint, view_func, defaults=defaults)
 
