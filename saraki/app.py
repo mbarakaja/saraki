@@ -1,4 +1,4 @@
-from flask import Flask, Blueprint as _Blueprint
+from flask import Flask, Blueprint as _Blueprint, has_app_context
 from flask_sqlalchemy import SQLAlchemy
 from saraki import errors
 from saraki.config import Config
@@ -27,9 +27,16 @@ class Saraki(Flask):
 
     def init(self):
         if hasattr(self, "auth"):
-            self.auth.persist_data()
 
-        database.session.commit()
+            def persist_data():
+                self.auth.persist_data()
+                database.session.commit()
+
+            if has_app_context():
+                persist_data()
+            else:
+                with self.app_context():
+                    persist_data()
 
     def add_default_blueprints(self):
         from saraki.api import appbp
