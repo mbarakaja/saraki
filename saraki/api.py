@@ -20,13 +20,13 @@ from .model import (
 
 
 user_schema = generate_schema(User, exclude=["canonical_username", "active"])
+user_schema["username"]["unique"] = True
+user_schema["email"]["unique"] = True
 
 
 def signup_view():
-
     data = request.get_json()
-
-    v = Validator(user_schema)
+    v = Validator(user_schema, User)
 
     if v.validate(data) is False:
         abort(400, v.errors)
