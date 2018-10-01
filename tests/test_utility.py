@@ -350,6 +350,7 @@ def _schema():
     return generate_schema(Product)
 
 
+@pytest.mark.wip
 class Test_schema_generator:
     def test_included_properties(self, _schema):
 
@@ -392,6 +393,16 @@ class Test_schema_generator:
 
     def test_non_nullable_columns_with_server_default_value(self, _schema):
         assert "required" not in _schema["updated_at"]
+
+    def test_unique_constraint(self):
+        schema = generate_schema(Product)
+        assert "unique" not in schema["name"]
+
+        schema = generate_schema(Cartoon)
+        assert schema["name"]["unique"] is True
+
+        schema = generate_schema(Cartoon, exclude_rules=["unique"])
+        assert "unique" not in schema["name"]
 
     def test_include_argument(self):
         schema = generate_schema(Product, include=["id", "enabled"])

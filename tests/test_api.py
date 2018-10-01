@@ -93,7 +93,7 @@ def test_list_user_orgs_endpoint(client, username, expected_lst):
 
 
 user_response_schema = generate_schema(
-    User, exclude=["id", "password", "canonical_username"]
+    User, exclude=["id", "password", "canonical_username"], exclude_rules=["unique"]
 )
 
 

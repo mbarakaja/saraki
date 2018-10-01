@@ -315,7 +315,7 @@ def add_view_func(modelcls, ident_prop, primary_key, schema, is_org, **kargs):
     if is_org:
         payload["org_id"] = current_org.id
 
-    v = Validator(schema)
+    v = Validator(schema, modelcls)
 
     if v.validate(payload) is False:
         raise ValidationError(v.errors)
@@ -353,7 +353,7 @@ def item_view(modelcls, ident_prop, primary_key, schema, is_org, **kargs):
 
     if request.method == "PATCH":
         payload = request.get_json()
-        v = Validator(schema)
+        v = Validator(schema, modelcls)
 
         if v.validate(payload, update=True, model=model) is False:
             raise ValidationError(v.errors)

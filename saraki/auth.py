@@ -35,7 +35,9 @@ from .exc import (
 )
 
 
-AUTH_SCHEMA = generate_schema(User, include=["username", "password"])
+AUTH_SCHEMA = generate_schema(
+    User, include=["username", "password"], exclude_rules=["unique"]
+)
 
 
 HTTP_VERBS_CRUD = {

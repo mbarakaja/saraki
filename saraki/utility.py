@@ -6,15 +6,6 @@ from sqlalchemy.orm.collections import InstrumentedList
 from sqlalchemy.exc import NoInspectionAvailable
 
 
-schema_type_conversions = {
-    int: "integer",
-    str: "string",
-    bool: "boolean",
-    datetime.date: "string",
-    datetime.datetime: "string",
-}
-
-
 def is_sqla_obj(obj):
     """Checks if an object is a SQLAlchemy model instance."""
     try:
@@ -144,7 +135,16 @@ class ExportData:
 export_from_sqla_object = ExportData(exclude=("org_id",))
 
 
-def generate_schema(model_class, include=(), exclude=()):
+schema_type_conversions = {
+    int: "integer",
+    str: "string",
+    bool: "boolean",
+    datetime.date: "string",
+    datetime.datetime: "string",
+}
+
+
+def generate_schema(model_class, include=(), exclude=(), exclude_rules=None):
     """ Inspects a SQLAlchemy model class and returns a validation schema to be
     used with the Cerberus library. The schema is generated mapping column
     types and constraints to Cerberus rules:
@@ -160,6 +160,10 @@ def generate_schema(model_class, include=(), exclude=()):
     |               | ``Column.default`` and ``Column.server_default``     |
     |               | **None**.                                            |
     +---------------+------------------------------------------------------+
+    | unique        | Included only when the ``unique`` constraint is      |
+    |               | ``True``, otherwise is omitted:                      |
+    |               | ``Column(unique=True)``                              |
+    +---------------+------------------------------------------------------+
     | default       | Not included in the output. This is handled by       |
     |               | SQLAlchemy or by the database engine.                |
     +---------------+------------------------------------------------------+
@@ -167,9 +171,11 @@ def generate_schema(model_class, include=(), exclude=()):
     :param model_class: SQLAlchemy model class.
     :param include: List of columns to include in the output.
     :param exclude: List of column to exclude from the output.
+    :param exclude_rules: Rules to be excluded from the output.
     """
 
     schema = {}
+    exclude_rules = exclude_rules or []
 
     mapper = inspect(model_class)
 
@@ -192,19 +198,27 @@ def generate_schema(model_class, include=(), exclude=()):
         if prop["type"] is None:
             raise LookupError("Unable to determine the column type")
 
-        if python_type == str and column.type.length is not None:
+        if (
+            "readonly" not in exclude_rules
+            and python_type == str
+            and column.type.length is not None
+        ):
             prop["maxlength"] = column.type.length
 
-        if column.primary_key is True:
+        if "readonly" not in exclude_rules and column.primary_key is True:
             prop["readonly"] = True
 
         if (
-            column.default is None
+            "required" not in exclude_rules
+            and column.default is None
             and column.server_default is None
             and column.nullable is False
             and column.primary_key is False
         ):
             prop["required"] = True
+
+        if "unique" not in exclude_rules and column.unique:
+            prop["unique"] = True
 
         schema[name] = prop
 
