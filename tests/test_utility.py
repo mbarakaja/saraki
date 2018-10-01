@@ -7,6 +7,7 @@ from saraki.utility import (
     import_into_sqla_object,
     Validator,
     get_key_path,
+    generate_schema,
 )
 from common import Cartoon, Product, Order, OrderLine, Todo
 
@@ -342,3 +343,66 @@ def _object():
 )
 def test_get_key_path(key, _object, result):
     assert get_key_path(key, _object) == result
+
+
+@pytest.fixture(scope="module")
+def _schema():
+    return generate_schema(Product)
+
+
+class Test_schema_generator:
+    def test_included_properties(self, _schema):
+
+        assert len(_schema) == 7
+        assert "id" in _schema
+        assert "name" in _schema
+        assert "color" in _schema
+        assert "price" in _schema
+        assert "created_at" in _schema
+        assert "updated_at" in _schema
+        assert "enabled" in _schema
+
+    def test_primary_key_column(self, _schema):
+        assert _schema["id"]["readonly"] is True
+
+    def test_integer_data_type(self, _schema):
+        assert _schema["id"]["type"] == "integer"
+        assert _schema["price"]["type"] == "integer"
+
+    def test_string_data_type_with_max_length(self, _schema):
+        assert _schema["name"]["type"] == "string"
+        assert _schema["name"]["maxlength"] == 120
+
+    def test_string_data_type_without_max_length(self, _schema):
+        assert _schema["color"]["type"] == "string"
+        assert "maxlength" not in _schema["color"]
+
+    def test_datetime_data_type(self, _schema):
+        assert _schema["created_at"]["type"] == "string"
+        assert _schema["updated_at"]["type"] == "string"
+
+    def test_boolean_data_type(self, _schema):
+        assert _schema["enabled"]["type"] == "boolean"
+
+    def test_non_nullable_columns(self, _schema):
+        assert _schema["name"]["required"] is True
+
+    def test_non_nullable_column_with_default_value(self, _schema):
+        assert "required" not in _schema["created_at"]
+
+    def test_non_nullable_columns_with_server_default_value(self, _schema):
+        assert "required" not in _schema["updated_at"]
+
+    def test_include_argument(self):
+        schema = generate_schema(Product, include=["id", "enabled"])
+
+        assert len(schema) == 2
+        assert "id" in schema
+        assert "enabled" in schema
+
+    def test_exclude_argument(self):
+        schema = generate_schema(Product, exclude=["id", "enabled"])
+
+        assert len(schema) == 5
+        assert "id" not in schema
+        assert "enabled" not in schema
