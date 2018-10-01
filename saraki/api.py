@@ -20,8 +20,6 @@ from .model import (
 
 
 user_schema = generate_schema(User, exclude=["canonical_username", "active"])
-user_schema["username"]["unique"] = True
-user_schema["email"]["unique"] = True
 
 
 def signup_view():
