@@ -26,6 +26,7 @@ braulio = "*"
 black = "*"
 "flake8-bugbear" = "*"
 pallets-sphinx-themes = "*"
+python-dotenv = "*"
 
 [requires]
 python_version = "3.6"
