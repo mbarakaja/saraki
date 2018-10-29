@@ -1,13 +1,11 @@
 import json
 import pytest
-from dotenv import load_dotenv, find_dotenv
 from saraki.model import database
 from test_endpoints import login
+
 from app import app
 
 app.testing = True
-
-load_dotenv(find_dotenv())
 
 
 @pytest.fixture(scope='session')

@@ -1,6 +1,5 @@
 import os
 import pytest
-from dotenv import load_dotenv
 
 from saraki import Saraki
 from saraki.model import database
@@ -21,9 +20,9 @@ from data import (
     insert_member_roles,
 )
 
+
 from assertions import pytest_assertrepr_compare  # noqa: F401
 
-load_dotenv()
 
 needdatabase = pytest.mark.skipif(
     os.getenv("DATABASE_URI") is None,
