@@ -4,8 +4,8 @@ from saraki import require_auth
 from saraki.model import database
 
 app = Saraki(__name__, db=None)
-app.config['SECRET_KEY'] = 'secret'
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['TEST_DATABASE_URI']
+app.config['SECRET_KEY'] = os.environ['SECRET_KEY']
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['SQLALCHEMY_DATABASE_URI']
 database.init_app(app)
 
 
