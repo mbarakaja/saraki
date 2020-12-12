@@ -1,0 +1,62 @@
+---
+services:
+
+  server:
+    image: mbarakaja/saraki:latest-alpine
+    container_name: ${NAMESPACE}-server
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+    - web
+    - internal
+    ports:
+    - 5000:5000
+    environment:
+    # - SQLALCHEMY_DATABASE_URI="postgresql://unicorn_user:magical_password89T!@postgres/rainbow_database"
+    - SQLALCHEMY_DATABASE_URI=mysql+mysqlconnector://unicorn_user:magical_password89T!@mariadb:3306/rainbow_database
+    - SECRET_KEY=your_secret_key
+    depends_on:
+    - mariadb
+    - postgres
+    command: ["python3", "app.py"]       
+
+  mariadb:
+    image: bunkerity/bunkerized-mariadb:latest
+    container_name: ${NAMESPACE}-mariadb
+    environment:
+      PASSWORD_LENGTH: 7
+      USER_DATABASE: rainbow_database
+      USER_NAME: unicorn_user
+      USER_PASSWORD: magical_password89T!
+      USER_PRIVILEGES: ALTER, CREATE, DELETE, DROP, INDEX, INSERT, REFERENCES, SELECT, UPDATE
+      ROOT_PASSWORD: rootical_password89T!
+      SKIP_SHOW_DATABASE: "OFF" # If set to ON, will deny the SHOW DATABASES statement to regular users.
+    networks:
+    - internal
+    volumes:
+    - mysql-data:/var/lib/mysql
+    - certs-data:/etc/letsencrypt
+
+  postgres:
+    image: postgres:alpine # use latest official postgres version
+    container_name: ${NAMESPACE}-postgres
+    networks:
+    - internal
+    environment:
+    - POSTGRES_USER=unicorn_user
+    - POSTGRES_PASSWORD=magical_password89T!
+    - POSTGRES_DB=rainbow_database89T!
+    volumes:
+    - postgres-data:/var/lib/postgresql/data/
+
+networks:
+  internal:
+    driver: bridge
+  web:
+    external: true
+
+volumes:
+  certs-data:
+  mysql-data:
+  postgres-data:
