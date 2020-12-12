@@ -1,4 +1,4 @@
-FROM python:3.8-alpine
+FROM python:3.8-alpine AS builder
 
 ARG VERSION=${VERSION:-"master"}
 ARG GIT_REMOTE_URL=${GIT_REMOTE_URL:-"https://github.com/mbarakaja/saraki"}
@@ -7,7 +7,7 @@ WORKDIR /opt/app
 
 # Install Python and external dependencies, including headers and GCC
 # RUN apk add --no-cache python3 python3-dev py3-pip libffi libffi-dev musl-dev gcc git ca-certificates openblas-dev musl-dev g++
-RUN apk add --no-cache musl-dev gcc git ca-certificates
+RUN apk add --no-cache musl-dev gcc git ca-certificates libffi libffi-dev postgresql-dev
 
 # Install Pipenv
 RUN pip3 install pipenv
@@ -34,17 +34,18 @@ ARG NOW
 # Create runtime user
 RUN mkdir -p /opt \
 	&& adduser -D saraki -h /opt/app -s /bin/sh \
- 	&& su saraki -c 'cd /opt/app; mkdir -p data config'
+        && su saraki -c 'cd /opt/app; mkdir -p data config'
 
 # Install Python and external runtime dependencies only
 # RUN apk add --no-cache python3 libffi openblas libstdc++
 
 # Switch to user context
 USER saraki
-WORKDIR /opt/saraki/data
+WORKDIR /opt/saraki
 
 # Copy the virtual environment from the previous image
-COPY --from=build /opt/venv /opt/venv
+COPY --from=builder /opt/venv /opt/venv
+COPY ./examples/basic /opt/saraki
 
 # Activate the virtual environment
 ENV PATH="/opt/venv/bin:$PATH" \
@@ -64,5 +65,7 @@ LABEL name="saraki" \
       vcs-url="${GIT_URL}" \
       vcs-ref="$VERSION" \
       distribution-scope="public"
+
+EXPOSE 5000
 
 ENTRYPOINT ["python3", "app.py"]

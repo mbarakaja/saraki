@@ -2,10 +2,58 @@
 services:
 
   server:
-    image: saraki:latest
+    image: mbarakaja/saraki:latest-alpine
     build:
       context: .
       dockerfile: Dockerfile
+    networks:
+    - web
+    - internal
     ports:
     - 5000:5000
-       
+    depends_on:
+    - mariadb
+    - postgres
+    command: ["python3", "app.py"]       
+
+  mariadb:
+    image: bunkerity/bunkerized-mariadb:latest
+    container_name: mariadb
+    environment:
+      LOGROTATE_MINSIZE: 10M
+      LOGROTATE_MAXAGE: 7
+      PASSWORD_LENGTH: 7
+      USER_DATABASE: rainbow_database
+      USER_NAME: unicorn_user
+      USER_PASSWORD: magical_password
+      USER_PRIVILEGES: ALTER, CREATE, DELETE, DROP, INDEX, INSERT, REFERENCES, SELECT, UPDATE
+      SKIP_SHOW_DATABASE: "OFF" # If set to ON, will deny the SHOW DATABASES statement to regular users.
+      ROOT_PASSWORD: rootical_password
+    networks:
+    - internal
+    volumes:
+    - mysql-data:/var/lib/mysql
+    - certs-data:/etc/letsencrypt
+
+  postgres:
+    image: postgres:alpine # use latest official postgres version
+    container_name: postgres
+    networks:
+    - internal
+    environment:
+    - POSTGRES_USER=unicorn_user
+    - POSTGRES_PASSWORD=magical_password
+    - POSTGRES_DB=rainbow_database
+    volumes:
+    - postgres-data:/var/lib/postgresql/data/
+
+networks:
+  internal:
+    driver: bridge
+  web:
+    external: true
+
+volumes:
+  certs-data:
+  mysql-data:
+  postgres-data:
